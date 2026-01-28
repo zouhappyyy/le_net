@@ -1,0 +1,86 @@
+{
+    "author": "Fabian",
+    "description": "",
+    "id": "9c20bca9c11d",
+    "name": "",
+    "results": {
+        "all": [
+            {
+                "1": {
+                    "Accuracy": 0.993988037109375,
+                    "Dice": 0.8653940597441975,
+                    "False Discovery Rate": 0.17779400726269445,
+                    "False Negative Rate": 0.08662925652987175,
+                    "False Omission Rate": 0.0018770823577209173,
+                    "False Positive Rate": 0.004269334399854996,
+                    "Jaccard": 0.7627265370645689,
+                    "Negative Predictive Value": 0.9981229176422791,
+                    "Precision": 0.8222059927373055,
+                    "Recall": 0.9133707434701283,
+                    "Total Positives Reference": 44373,
+                    "Total Positives Test": 49293,
+                    "True Negative Rate": 0.995730665600145
+                },
+                "reference": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task505_EsoTJ_10pct/gt_segmentations/ESO_TJ_1010018171.nii.gz",
+                "test": "./ckpt/nnUNet/3d_fullres/Task505_EsoTJ_10pct/nnUNetTrainerV2_MedNeXt_S_kernel3__nnUNetPlansv2.1_trgSp_1x1x1/fold_0/validation_raw_postprocessed/ESO_TJ_1010018171.nii.gz"
+            },
+            {
+                "1": {
+                    "Accuracy": 0.9980735778808594,
+                    "Dice": 0.8083673275780286,
+                    "False Discovery Rate": 0.30184350675952476,
+                    "False Negative Rate": 0.040103638616649784,
+                    "False Omission Rate": 0.0001707477456261478,
+                    "False Positive Rate": 0.0017641354706635637,
+                    "Jaccard": 0.6783695565639678,
+                    "Negative Predictive Value": 0.9998292522543738,
+                    "Precision": 0.6981564932404752,
+                    "Recall": 0.9598963613833502,
+                    "Total Positives Reference": 8877,
+                    "Total Positives Test": 12205,
+                    "True Negative Rate": 0.9982358645293364
+                },
+                "reference": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task505_EsoTJ_10pct/gt_segmentations/ESO_TJ_60010190651.nii.gz",
+                "test": "./ckpt/nnUNet/3d_fullres/Task505_EsoTJ_10pct/nnUNetTrainerV2_MedNeXt_S_kernel3__nnUNetPlansv2.1_trgSp_1x1x1/fold_0/validation_raw_postprocessed/ESO_TJ_60010190651.nii.gz"
+            },
+            {
+                "1": {
+                    "Accuracy": 0.996619701385498,
+                    "Dice": 0.893515389121716,
+                    "False Discovery Rate": 0.10407566948820679,
+                    "False Negative Rate": 0.1088806327900288,
+                    "False Omission Rate": 0.0017606973020245112,
+                    "False Positive Rate": 0.0016741157955126873,
+                    "Jaccard": 0.8075262686324021,
+                    "Negative Predictive Value": 0.9982393026979755,
+                    "Precision": 0.8959243305117932,
+                    "Recall": 0.8911193672099712,
+                    "Total Positives Reference": 33376,
+                    "Total Positives Test": 33197,
+                    "True Negative Rate": 0.9983258842044873
+                },
+                "reference": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task505_EsoTJ_10pct/gt_segmentations/ESO_TJ_60015513981.nii.gz",
+                "test": "./ckpt/nnUNet/3d_fullres/Task505_EsoTJ_10pct/nnUNetTrainerV2_MedNeXt_S_kernel3__nnUNetPlansv2.1_trgSp_1x1x1/fold_0/validation_raw_postprocessed/ESO_TJ_60015513981.nii.gz"
+            }
+        ],
+        "mean": {
+            "1": {
+                "Accuracy": 0.9962271054585775,
+                "Dice": 0.855758925481314,
+                "False Discovery Rate": 0.194571061170142,
+                "False Negative Rate": 0.07853784264551678,
+                "False Omission Rate": 0.0012695091351238588,
+                "False Positive Rate": 0.0025691952220104155,
+                "Jaccard": 0.7495407874203129,
+                "Negative Predictive Value": 0.9987304908648761,
+                "Precision": 0.805428938829858,
+                "Recall": 0.9214621573544832,
+                "Total Positives Reference": 28875.333333333332,
+                "Total Positives Test": 31565.0,
+                "True Negative Rate": 0.9974308047779896
+            }
+        }
+    },
+    "task": "",
+    "timestamp": "2026-01-22 07:17:54.505422"
+}
