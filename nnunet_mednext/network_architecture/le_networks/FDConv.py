@@ -6,7 +6,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from numpy.linalg import matrix_rank
 from torch.utils.checkpoint import checkpoint
-from mmcv.cnn import CONV_LAYERS
 from torch import Tensor
 import torch.nn.functional as F
 import math
@@ -387,8 +386,7 @@ def get_fft2freq(d1, d2, use_rfft=False):
         plt.show()
     return sorted_coords.permute(1, 0), freq_hw
 
-
-@CONV_LAYERS.register_module()  # 为 mmdet、mmseg 注册这个模块，表示该类是一个卷积层模块
+  # 为 mmdet、mmseg 注册这个模块，表示该类是一个卷积层模块
 class FDConv(nn.Conv2d):  # 定义 FDConv 类，继承自 nn.Conv2d
     def __init__(self,
                  *args,  # 允许传入任意数量的参数
@@ -616,10 +614,9 @@ class FDConv(nn.Conv2d):  # 定义 FDConv 类，继承自 nn.Conv2d
 
 
 if __name__ == '__main__':
-    x = torch.rand(4, 128, 64, 64) * 1
+    # x = torch.rand(4, 128, 64, 64) * 1
+    x = torch.zeros((1, 1, 128, 128, 128))
     m = FDConv(in_channels=128, out_channels=64, kernel_num=8, kernel_size=3, padding=1, bias=True)
     y = m(x)
-    print("微信公众号：十小大的底层视觉工坊")
-    print("知乎、CSDN：十小大")
     print("输入特征维度：", x.shape)
     print("输出特征维度：", y.shape)

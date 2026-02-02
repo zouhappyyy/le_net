@@ -33,6 +33,7 @@ var/
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
+nnunet_mednext/paths.py
 
 # Unit test / coverage reports
 htmlcov/
@@ -113,3 +114,4 @@ ENV/
 
 *.model
 
+/.github/

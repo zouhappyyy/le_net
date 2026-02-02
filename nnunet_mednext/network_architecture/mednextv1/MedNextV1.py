@@ -381,6 +381,48 @@ class MedNeXt(nn.Module):
             return x
 
 
+class MedNeXtV1(MedNeXt):
+    """
+    MedNeXt V1 的封装类，直接复用现有 MedNeXt 的实现。
+    主要用于统一命名或对外暴露为 MedNeXtV1。
+    """
+    def __init__(
+        self,
+        in_channels: int,
+        n_channels: int,
+        n_classes: int,
+        exp_r = 4,
+        kernel_size: int = 7,
+        enc_kernel_size: int = None,
+        dec_kernel_size: int = None,
+        deep_supervision: bool = False,
+        do_res: bool = False,
+        do_res_up_down: bool = False,
+        checkpoint_style: bool = None,
+        block_counts = [2, 2, 2, 2, 2, 2, 2, 2, 2],
+        norm_type = "group",
+        dim: str = "3d",
+        grn: bool = False,
+    ):
+        super().__init__(
+            in_channels=in_channels,
+            n_channels=n_channels,
+            n_classes=n_classes,
+            exp_r=exp_r,
+            kernel_size=kernel_size,
+            enc_kernel_size=enc_kernel_size,
+            dec_kernel_size=dec_kernel_size,
+            deep_supervision=deep_supervision,
+            do_res=do_res,
+            do_res_up_down=do_res_up_down,
+            checkpoint_style=checkpoint_style,
+            block_counts=block_counts,
+            norm_type=norm_type,
+            dim=dim,
+            grn=grn,
+        )
+
+
 if __name__ == "__main__":
 
     network = MedNeXt(
