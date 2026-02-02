@@ -3,6 +3,7 @@ mednextv1_plan_and_preprocess -t 505 -pl3d ExperimentPlanner3D_v21_customTargetS
 
 # 2) 训练单个 fold（Small 模型，kernel=3，fold 0）
 mednextv1_train 3d_fullres nnUNetTrainerV2_MedNeXt_S_kernel3 505 0 -p nnUNetPlansv2.1_trgSp_1x1x1
+mednextv1_train 3d_fullres nnUNetTrainerV2_MyMedNext 505 0 -p nnUNetPlansv2.1_trgSp_1x1x1
 nohup mednextv1_train 3d_fullres nnUNetTrainerV2_MedNeXt_S_kernel3 505 0 -p nnUNetPlansv2.1_trgSp_1x1x1 > ./log/MedNeXt_S_kernel3_task505_fold0_train.log 2>&1 &
 
 # 3) 训练所有 5 个 folds（示例循环）
