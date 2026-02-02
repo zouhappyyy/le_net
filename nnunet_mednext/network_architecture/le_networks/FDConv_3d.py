@@ -34,9 +34,10 @@ def get_fft3freq(d1, d2, d3, use_rfft=False):
     dist = torch.norm(freq_grid, dim=-1)  # 计算频率“半径”（频率模长）
     sorted_dist, indices = torch.sort(dist.reshape(-1))  # 按频率距离排序
     # convert flattened index -> (i,j,k)
+
     coords = torch.stack([
-        indices // (d2 * d3_out),
-        (indices % (d2 * d3_out)) // d3_out,
+        torch.div(indices, (d2 * d3_out), rounding_mode='trunc'),
+        torch.div(indices % (d2 * d3_out), d3_out, rounding_mode='trunc'),
         indices % d3_out
     ], dim=-1)
     return coords.permute(1, 0), freq_grid
