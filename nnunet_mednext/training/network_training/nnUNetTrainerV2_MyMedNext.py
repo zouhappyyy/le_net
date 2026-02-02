@@ -30,7 +30,7 @@ class nnUNetTrainerV2_MyMedNext(nnUNetTrainerV2_Optim_and_LR):
     def initialize_network(self):
         self.network = MyMedNext(
             in_channels=self.num_input_channels,
-            n_channels=32,
+            n_channels=16,
             n_classes=self.num_classes,
             exp_r=2,                 # Expansion ratio
             kernel_size=3,           # 与 MedNeXt_S_kernel3 一致
@@ -39,6 +39,8 @@ class nnUNetTrainerV2_MyMedNext(nnUNetTrainerV2_Optim_and_LR):
             do_res_up_down=True,
             block_counts=[2, 2, 2, 2, 2, 2, 2, 2, 2],
         )
+        self.batch_size = 1
+        self.max_epochs = 300
 
         if torch.cuda.is_available():
             self.network.cuda()

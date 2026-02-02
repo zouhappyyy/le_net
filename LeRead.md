@@ -5,6 +5,7 @@ mednextv1_plan_and_preprocess -t 505 -pl3d ExperimentPlanner3D_v21_customTargetS
 mednextv1_train 3d_fullres nnUNetTrainerV2_MedNeXt_S_kernel3 505 0 -p nnUNetPlansv2.1_trgSp_1x1x1
 mednextv1_train 3d_fullres nnUNetTrainerV2_MyMedNext 505 0 -p nnUNetPlansv2.1_trgSp_1x1x1
 nohup mednextv1_train 3d_fullres nnUNetTrainerV2_MedNeXt_S_kernel3 505 0 -p nnUNetPlansv2.1_trgSp_1x1x1 > ./log/MedNeXt_S_kernel3_task505_fold0_train.log 2>&1 &
+nohup mednextv1_train 3d_fullres nnUNetTrainerV2_MyMedNext 505 0 -p nnUNetPlansv2.1_trgSp_1x1x1 > ./log/le_fdconv_task505_fold0_train.log 2>&1 &
 
 # 3) 训练所有 5 个 folds（示例循环）
 for F in 0 1 2 3 4; do
