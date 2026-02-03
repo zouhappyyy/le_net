@@ -26,6 +26,13 @@ class nnUNetTrainerV2_Med_FDConv_Att(nnUNetTrainerV2_Optim_and_LR):
     使用 MedNeXt_FDConv_Att 作为主干的 nnUNet Trainer。
     仅演示网络构造部分，其余训练逻辑沿用 nnUNetTrainerV2。
     """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # nnU-Net v2 常用属性名是 max_num_epochs，如果父类用这个，就一并设置
+        # 视你的基类实现而定，可以同时设两个以防万一
+        self.max_epochs = 300
+        if hasattr(self, "max_num_epochs"):
+            self.max_num_epochs = 300
 
     def initialize_network(self):
         """

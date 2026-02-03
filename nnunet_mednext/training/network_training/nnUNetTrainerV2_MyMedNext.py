@@ -24,6 +24,13 @@ class MyMedNext(MyMedNext_Orig, SegmentationNetwork):
 
 
 class nnUNetTrainerV2_MyMedNext(nnUNetTrainerV2_Optim_and_LR):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # nnU-Net v2 常用属性名是 max_num_epochs，如果父类用这个，就一并设置
+        # 视你的基类实现而定，可以同时设两个以防万一
+        self.max_epochs = 300
+        if hasattr(self, "max_num_epochs"):
+            self.max_num_epochs = 300
     """
     使用自定义 MyMedNext 的 trainer，参数配置基本沿用 MedNeXt_S_kernel3。
     """
@@ -40,7 +47,7 @@ class nnUNetTrainerV2_MyMedNext(nnUNetTrainerV2_Optim_and_LR):
             block_counts=[2, 2, 2, 2, 2, 2, 2, 2, 2],
         )
         self.batch_size = 1
-        self.max_epochs = 300
+
 
         if torch.cuda.is_available():
             self.network.cuda()
