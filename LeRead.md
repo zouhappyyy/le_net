@@ -14,3 +14,9 @@ done
 
 # 4) 使用 UpKern 从已训练的 kernel=3 权重初始化 kernel=5 并训练（注意替换路径）
 mednextv1_train 3d_fullres nnUNetTrainerV2_MedNeXt_S_kernel5 Task505 0 -p nnUNetPlansv2.1_trgSp_1x1x1 -pretrained_weights `SOME_PATH/nnUNet/3d_fullres/Task505/nnUNetTrainerV2_MedNeXt_S_kernel3__nnUNetPlansv2.1_trgSp_1x1x1/fold_0/model_final_checkpoint.model` -resample_weights
+
+# 5) 监控 GPU 使用情况及终止训练进程
+nvidia-smi
+nvidia-smi -q -d PIDS
+fuser -v /dev/nvidia*
+pkill -f mednextv1_train
