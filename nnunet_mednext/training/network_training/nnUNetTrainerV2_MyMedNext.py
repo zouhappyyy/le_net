@@ -48,6 +48,5 @@ class nnUNetTrainerV2_MyMedNext(nnUNetTrainerV2_Optim_and_LR):
         )
         self.batch_size = 1
 
-
         if torch.cuda.is_available():
             self.network.cuda()
