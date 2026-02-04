@@ -379,6 +379,7 @@ class MedNeXt(nn.Module):
             return x
 
 
+
 class MedNeXt_FDConv_Att(MedNeXt):
     """
     在不修改 MedNeXtBlock 源码的前提下:
@@ -434,9 +435,6 @@ class MedNeXt_FDConv_Att(MedNeXt):
     # ---------- FDConv 替换相关 ----------
 
     def _build_fdconv_from_conv(self, conv: nn.Conv3d) -> FDConv:
-        """
-        根据已有 Conv3d 构造 FDConv, 尽量拷贝权重和偏置.
-        """
         fdconv = FDConv(
             in_channels=conv.in_channels,
             out_channels=conv.out_channels,
@@ -450,7 +448,6 @@ class MedNeXt_FDConv_Att(MedNeXt):
             use_fdconv_if_c_gt=0,
         )
 
-        # 尽量拷贝参数
         if hasattr(fdconv, "weight") and hasattr(conv, "weight"):
             if fdconv.weight.shape == conv.weight.shape:
                 fdconv.weight.data.copy_(conv.weight.data)
@@ -462,11 +459,6 @@ class MedNeXt_FDConv_Att(MedNeXt):
         return fdconv
 
     def _replace_second_conv1_in_container(self, container: nn.Module) -> None:
-        """
-        在一个容器 (通常是 nn.Sequential) 内:
-        找出所有 MedNeXtBlock, 若数量 >= 2, 则将第二个 block 的 conv1 换成 FDConv。
-        仅当 conv1 是 Conv3d 且 stride==(1,1,1) 时替换。
-        """
         blocks = []
         for name, child in container.named_children():
             if isinstance(child, MedNeXtBlock):
@@ -482,9 +474,6 @@ class MedNeXt_FDConv_Att(MedNeXt):
             second_block.conv1 = self._build_fdconv_from_conv(conv1)
 
     def _replace_second_conv1_in_all_enc_dec(self) -> None:
-        """
-        只对 enc_block_* / dec_block_* 做第二个 MedNeXtBlock.conv1 -> FDConv 的替换。
-        """
         target_names = [
             "enc_block_0", "enc_block_1", "enc_block_2", "enc_block_3", "bottleneck",
             "dec_block_3", "dec_block_2", "dec_block_1", "dec_block_0",
@@ -518,7 +507,7 @@ class MedNeXt_FDConv_Att(MedNeXt):
             # decoder 3
             x_up_3 = checkpoint.checkpoint(self.up_3, x, self.dummy_tensor)
             dec_x = x_res_3 + x_up_3
-            dec_x = self.att_dec3(dec_x)  # 跳跃连接后注意力
+            dec_x = self.att_dec3(dec_x, x_res_3)
             x = self.iterative_checkpoint(self.dec_block_3, dec_x)
             if self.do_ds:
                 x_ds_3 = checkpoint.checkpoint(self.out_3, x, self.dummy_tensor)
@@ -527,7 +516,7 @@ class MedNeXt_FDConv_Att(MedNeXt):
             # decoder 2
             x_up_2 = checkpoint.checkpoint(self.up_2, x, self.dummy_tensor)
             dec_x = x_res_2 + x_up_2
-            dec_x = self.att_dec2(dec_x)
+            dec_x = self.att_dec2(dec_x, x_res_2)
             x = self.iterative_checkpoint(self.dec_block_2, dec_x)
             if self.do_ds:
                 x_ds_2 = checkpoint.checkpoint(self.out_2, x, self.dummy_tensor)
@@ -536,7 +525,7 @@ class MedNeXt_FDConv_Att(MedNeXt):
             # decoder 1
             x_up_1 = checkpoint.checkpoint(self.up_1, x, self.dummy_tensor)
             dec_x = x_res_1 + x_up_1
-            dec_x = self.att_dec1(dec_x)
+            dec_x = self.att_dec1(dec_x, x_res_1)
             x = self.iterative_checkpoint(self.dec_block_1, dec_x)
             if self.do_ds:
                 x_ds_1 = checkpoint.checkpoint(self.out_1, x, self.dummy_tensor)
@@ -545,7 +534,7 @@ class MedNeXt_FDConv_Att(MedNeXt):
             # decoder 0
             x_up_0 = checkpoint.checkpoint(self.up_0, x, self.dummy_tensor)
             dec_x = x_res_0 + x_up_0
-            dec_x = self.att_dec0(dec_x)
+            dec_x = self.att_dec0(dec_x, x_res_0)
             x = self.iterative_checkpoint(self.dec_block_0, dec_x)
             del x_res_0, x_up_0, dec_x
 
@@ -570,7 +559,7 @@ class MedNeXt_FDConv_Att(MedNeXt):
             # decoder 3
             x_up_3 = self.up_3(x)
             dec_x = x_res_3 + x_up_3
-            dec_x = self.att_dec3(dec_x)
+            dec_x = self.att_dec3(dec_x, x_res_3)
             x = self.dec_block_3(dec_x)
             if self.do_ds:
                 x_ds_3 = self.out_3(x)
@@ -579,7 +568,7 @@ class MedNeXt_FDConv_Att(MedNeXt):
             # decoder 2
             x_up_2 = self.up_2(x)
             dec_x = x_res_2 + x_up_2
-            dec_x = self.att_dec2(dec_x)
+            dec_x = self.att_dec2(dec_x, x_res_2)
             x = self.dec_block_2(dec_x)
             if self.do_ds:
                 x_ds_2 = self.out_2(x)
@@ -588,7 +577,7 @@ class MedNeXt_FDConv_Att(MedNeXt):
             # decoder 1
             x_up_1 = self.up_1(x)
             dec_x = x_res_1 + x_up_1
-            dec_x = self.att_dec1(dec_x)
+            dec_x = self.att_dec1(dec_x, x_res_1)
             x = self.dec_block_1(dec_x)
             if self.do_ds:
                 x_ds_1 = self.out_1(x)
@@ -597,7 +586,7 @@ class MedNeXt_FDConv_Att(MedNeXt):
             # decoder 0
             x_up_0 = self.up_0(x)
             dec_x = x_res_0 + x_up_0
-            dec_x = self.att_dec0(dec_x)
+            dec_x = self.att_dec0(dec_x, x_res_0)
             x = self.dec_block_0(dec_x)
             del x_res_0, x_up_0, dec_x
 
