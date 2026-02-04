@@ -21,6 +21,7 @@ class MedNeXt_FDConv_Att(MedNeXt_FDConv_Att_Orig, SegmentationNetwork):
         # 这里和 MedNeXt 包装类一致，从 kwargs 拿 n_classes
         self.num_classes = kwargs["n_classes"]
 
+
 class nnUNetTrainerV2_Med_FDConv_Att(nnUNetTrainerV2_Optim_and_LR):
     """
     使用 MedNeXt_FDConv_Att 作为主干的 nnUNet Trainer。
@@ -28,8 +29,7 @@ class nnUNetTrainerV2_Med_FDConv_Att(nnUNetTrainerV2_Optim_and_LR):
     """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # nnU-Net v2 常用属性名是 max_num_epochs，如果父类用这个，就一并设置
-        # 视你的基类实现而定，可以同时设两个以防万一
+        # 统一训练轮数
         self.max_epochs = 300
         if hasattr(self, "max_num_epochs"):
             self.max_num_epochs = 300
@@ -38,6 +38,9 @@ class nnUNetTrainerV2_Med_FDConv_Att(nnUNetTrainerV2_Optim_and_LR):
         """
         根据 nnUNet 的规划信息构造 MedNeXt_FDConv_Att。
         """
+        # 某些基类里可能没有 use_amp，用 getattr 提供默认值
+        use_amp = getattr(self, "use_amp", False)
+
         self.network = MedNeXt_FDConv_Att(
             in_channels=self.num_input_channels,
             n_channels=16,
@@ -47,7 +50,7 @@ class nnUNetTrainerV2_Med_FDConv_Att(nnUNetTrainerV2_Optim_and_LR):
             deep_supervision=True,
             do_res=True,
             do_res_up_down=True,
-            checkpoint_style='outside_block' if self.use_amp else None,
+            checkpoint_style='outside_block' if use_amp else None,
             block_counts=[2, 2, 2, 2, 2, 2, 2, 2, 2],
             norm_type='group',
             dim='3d',
