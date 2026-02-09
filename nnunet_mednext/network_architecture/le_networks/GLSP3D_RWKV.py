@@ -264,52 +264,35 @@ class Downsample3D(nn.Module):
         return self.conv(x)
 
 
+
+
 class RWKV_UNet_3D_Encoder(nn.Module):
-    def __init__(self, in_ch=1, base_ch=32, rwkv_block=None):
+    def __init__(self, in_ch: int = 1, base_ch: int = 32):
         super().__init__()
 
-        C = base_ch
+        Cr = base_ch
 
-        # Stem
-        self.stem = nn.Conv3d(in_ch, C, 3, padding=1)
+        # 注意：这个 stem/stage1/2 用在「从中间特征开始」的 forward_from_feat 中
+        # 输入通道数由外部保证对齐，这里使用 1x1 调整
+        self.in_proj = nn.Conv3d(in_ch, Cr * 4, kernel_size=1, bias=False)
 
-        # Stage 1 → 2C
-        self.stage1 = nn.Sequential(
-            GLSP3D(C, C),
-            Downsample3D(C, C * 2)
-        )
-
-        # Stage 2 → 4C
+        # 第三层（对应 MedNeXt 4C 尺度）：输出 4Cr
         self.stage2 = nn.Sequential(
-            GLSP3D(C * 2, C * 2),
-            Downsample3D(C * 2, C * 4)
+            GLSP3D(Cr * 4, Cr * 4),
+            Downsample3D(Cr * 4, Cr * 8),
         )
 
-        # Stage 3 → 8C
+        # 第四层（对应 MedNeXt 8C 尺度）：输出 8Cr
         self.stage3 = nn.Sequential(
-            GLSP3D(C * 4, C * 4),
-            Downsample3D(C * 4, C * 8)
+            GLSP3D(Cr * 8, Cr * 8),
         )
 
-        # Stage 4 → 8C (no downsample)
-        self.stage4 = GLSP3D(C * 8, C * 8)
+    def forward_from_feat(self, feat_med_2: torch.Tensor):
+        # feat_med_2: [B, 4C, D, H, W] -> 先投影到 4Cr
+        x = self.in_proj(feat_med_2)     # [B, 4Cr, ...]
+        r2 = x                           # 对应 4Cr
 
-    def forward(self, x):
-        feats = []
+        x = self.stage2(x)               # [B, 8Cr, ...] 下采样一层
+        r3 = self.stage3(x)              # [B, 8Cr, ...] 再做一层 GLSP
 
-        x = self.stem(x)
-        feats.append(x)          # skip1
-
-        x = self.stage1(x)
-        feats.append(x)          # skip2
-
-        x = self.stage2(x)
-        feats.append(x)          # skip3
-
-        x = self.stage3(x)
-        feats.append(x)          # skip4
-
-        x = self.stage4(x)
-        feats.append(x)          # bottleneck
-
-        return feats
+        return r2, r3

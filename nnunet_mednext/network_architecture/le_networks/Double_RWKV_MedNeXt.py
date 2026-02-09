@@ -47,6 +47,7 @@ class FusionBlock3D(nn.Module):
             return self.act(x_med + x_rwkv)
 
 
+
 class MedNeXt_EncoderOnly(MedNeXt_Orig):
     """Wrapper over original MedNeXt that exposes encoder multi-scale features.
 
@@ -77,16 +78,23 @@ class MedNeXt_EncoderOnly(MedNeXt_Orig):
 
         return [x_res_0, x_res_1, x_res_2, x_res_3, bottleneck]
 
+    def forward_from_fused_bottleneck(self, fused_feat: torch.Tensor) -> torch.Tensor:
+        """从已经融合后的 encoder 特征进入 bottleneck。
+
+        参数:
+            fused_feat: 空间尺寸与 enc\_block\_3 输出下采样后一致，通道与原来 bottleneck 输入一致的特征，
+                        例如经过双分支融合后的 8C 特征。
+
+        返回:
+            bottleneck: 经过 MedNeXt 原始 bottleneck 模块后的特征 (16C)。
+        """
+        bottleneck = self.bottleneck(fused_feat)
+        return bottleneck
+
 
 class Double_RWKV_MedNeXt_Encoder(nn.Module):
-    """Double-branch encoder: RWKV_UNet_3D_Encoder + MedNeXt encoder.
-
-    Inputs:
-        x: (B, in_channels, D, H, W)
-
-    Outputs:
-        list of fused features [f0, f1, f2, f3, f4]
-        where channel sizes follow MedNeXt convention but bottleneck is 8C.
+    """双分支编码器：前两层仅 MedNeXt，第三/第四层与 RWKV 双分支 concat+1x1 卷积融合；
+    bottleneck 只使用 MedNeXt 的 bottleneck 特征。
     """
 
     def __init__(
@@ -101,7 +109,7 @@ class Double_RWKV_MedNeXt_Encoder(nn.Module):
         do_res: bool = False,
         do_res_up_down: bool = False,
         checkpoint_style: str = None,
-        block_counts = None,
+        block_counts=None,
         norm_type: str = "group",
         dim: str = "3d",
         grn: bool = False,
@@ -109,6 +117,10 @@ class Double_RWKV_MedNeXt_Encoder(nn.Module):
         rwkv_base_ch: int = None,
     ):
         super().__init__()
+
+        # 强制使用 concat 模式做融合（concat + 1x1x1 卷积）
+        if fusion_mode != "concat":
+            fusion_mode = "concat"
 
         if rwkv_base_ch is None:
             rwkv_base_ch = n_channels
@@ -120,7 +132,7 @@ class Double_RWKV_MedNeXt_Encoder(nn.Module):
         self.mednext_enc = MedNeXt_EncoderOnly(
             in_channels=in_channels,
             n_channels=n_channels,
-            n_classes=1,  # dummy, we only use encoder
+            n_classes=1,  # dummy, only encoder used
             exp_r=exp_r,
             kernel_size=kernel_size,
             enc_kernel_size=enc_kernel_size,
@@ -141,59 +153,73 @@ class Double_RWKV_MedNeXt_Encoder(nn.Module):
         C = n_channels
         Cr = rwkv_base_ch
 
-        # 四个尺度特征融合：1C, 2C, 4C, 8C
-        self.fuse0 = FusionBlock3D(C, Cr, C, mode=fusion_mode)
-        self.fuse1 = FusionBlock3D(2 * C, 2 * Cr, 2 * C, mode=fusion_mode)
+        # 第三、第四层用 concat+1x1x1 卷积融合（前两层不融合）
         self.fuse2 = FusionBlock3D(4 * C, 4 * Cr, 4 * C, mode=fusion_mode)
         self.fuse3 = FusionBlock3D(8 * C, 8 * Cr, 8 * C, mode=fusion_mode)
 
-        # 瓶颈层：Gated fusion，输入为 MedNeXt 与 RWKV 的最高层特征，输出 8C
-        self.gated_bottleneck = nn.Sequential(
-            FusionBlock3D(16 * C, 8 * Cr, 8 * C, mode=fusion_mode),
-        )
-
     def forward(self, x: torch.Tensor):
+        # MedNeXt 多尺度特征：[C, 2C, 4C, 8C, 16C]
         feats_med = self.mednext_enc.forward_encoder(x)
-        feats_rwkv = self.rwkv_enc(x)
 
-        f0 = self.fuse0(feats_med[0], feats_rwkv[0])
-        f1 = self.fuse1(feats_med[1], feats_rwkv[1])
-        f2 = self.fuse2(feats_med[2], feats_rwkv[2])
-        f3 = self.fuse3(feats_med[3], feats_rwkv[3])
+        # 前两层：只使用 MedNeXt
+        f0 = feats_med[0]  # C
+        f1 = feats_med[1]  # 2C
 
-        # 瓶颈：8C 通道的 gated 融合输出
-        f4 = self.gated_bottleneck[0](feats_med[4], feats_rwkv[4])
+        # 从 MedNeXt 的第三层特征（4C）开始送入两层 RWKV
+        # RWKV 只输出 4Cr、8Cr 两个尺度
+        rwkv_feats_2, rwkv_feats_3 = self.rwkv_enc.forward_from_feat(feats_med[2])
+
+        # 第三、第四层：MedNeXt + RWKV，concat + 1x1x1 卷积融合
+        f2 = self.fuse2(feats_med[2], rwkv_feats_2)  # 输出 4C
+        f3 = self.fuse3(feats_med[3], rwkv_feats_3)  # 输出 8C
+
+        # bottleneck：只使用 MedNeXt bottleneck（16C）
+        f4 = feats_med[4]
 
         return [f0, f1, f2, f3, f4]
 
 
-class Double_RWKV_MedNeXt(MedNeXt_Orig):
-    """Full segmentation network that uses Double_RWKV_MedNeXt_Encoder features
-    and keeps MedNeXt decoder / output heads. Bottleneck feature has 8C channels.
+
+class Double_RWKV_MedNeXt_Encoder(nn.Module):
+    """双分支编码器：前两层仅 MedNeXt，第三/第四层与 RWKV 双分支 concat+1x1 卷积融合；
+    bottleneck 从融合后的 8C 特征进入 MedNeXt 原始 bottleneck。
     """
 
-    def __init__(self, *args, fusion_mode: str = "concat", rwkv_base_ch: int = None, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(
+        self,
+        in_channels: int,
+        n_channels: int,
+        exp_r,
+        kernel_size: int,
+        enc_kernel_size: int = None,
+        dec_kernel_size: int = None,
+        deep_supervision: bool = False,
+        do_res: bool = False,
+        do_res_up_down: bool = False,
+        checkpoint_style: str = None,
+        block_counts=None,
+        norm_type: str = "group",
+        dim: str = "3d",
+        grn: bool = False,
+        fusion_mode: str = "concat",
+        rwkv_base_ch: int = None,
+    ):
+        super().__init__()
 
-        in_channels = kwargs.get("in_channels", args[0] if len(args) > 0 else 1)
-        n_channels = kwargs.get("n_channels", 32)
-        exp_r = kwargs.get("exp_r", 4)
-        kernel_size = kwargs.get("kernel_size", 3)
-        enc_kernel_size = kwargs.get("enc_kernel_size", None)
-        dec_kernel_size = kwargs.get("dec_kernel_size", None)
-        deep_supervision = kwargs.get("deep_supervision", False)
-        do_res = kwargs.get("do_res", False)
-        do_res_up_down = kwargs.get("do_res_up_down", False)
-        checkpoint_style = kwargs.get("checkpoint_style", None)
-        block_counts = kwargs.get("block_counts", [2, 2, 2, 2, 2, 2, 2, 2, 2])
-        norm_type = kwargs.get("norm_type", "group")
-        dim = kwargs.get("dim", "3d")
-        grn = kwargs.get("grn", False)
+        if fusion_mode != "concat":
+            fusion_mode = "concat"
 
-        # 用双分支 encoder 替换原来的 MedNeXt encoder 结构
-        self.double_encoder = Double_RWKV_MedNeXt_Encoder(
+        if rwkv_base_ch is None:
+            rwkv_base_ch = n_channels
+
+        if block_counts is None:
+            block_counts = [2, 2, 2, 2, 2, 2, 2, 2, 2]
+
+        # MedNeXt encoder
+        self.mednext_enc = MedNeXt_EncoderOnly(
             in_channels=in_channels,
             n_channels=n_channels,
+            n_classes=1,  # dummy, only encoder used
             exp_r=exp_r,
             kernel_size=kernel_size,
             enc_kernel_size=enc_kernel_size,
@@ -206,40 +232,35 @@ class Double_RWKV_MedNeXt(MedNeXt_Orig):
             norm_type=norm_type,
             dim=dim,
             grn=grn,
-            fusion_mode=fusion_mode,
-            rwkv_base_ch=rwkv_base_ch,
         )
 
-    def forward(self, x):
-        # 使用双分支 encoder 生成 multi-scale 特征，其中 f4 为 8C 通道的瓶颈输出
-        f0, f1, f2, f3, bottleneck = self.double_encoder(x)
+        # RWKV encoder（内部实现 forward_from_feat，只吃 4C 特征）
+        self.rwkv_enc = RWKV_UNet_3D_Encoder(in_ch=in_channels, base_ch=rwkv_base_ch)
 
-        x = bottleneck
+        C = n_channels
+        Cr = rwkv_base_ch
 
-        x_up_3 = self.up_3(x)
-        dec_x = f3 + x_up_3
-        x = self.dec_block_3(dec_x)
+        # 第三、第四层用 concat+1x1x1 卷积融合（前两层不融合）
+        self.fuse2 = FusionBlock3D(4 * C, 4 * Cr, 4 * C, mode=fusion_mode)
+        self.fuse3 = FusionBlock3D(8 * C, 8 * Cr, 8 * C, mode=fusion_mode)
 
-        x_up_2 = self.up_2(x)
-        dec_x = f2 + x_up_2
-        x = self.dec_block_2(dec_x)
+    def forward(self, x: torch.Tensor):
+        # MedNeXt 多尺度特征：[C, 2C, 4C, 8C, 16C]
+        feats_med = self.mednext_enc.forward_encoder(x)
 
-        x_up_1 = self.up_1(x)
-        dec_x = f1 + x_up_1
-        x = self.dec_block_1(dec_x)
+        # 前两层：只使用 MedNeXt
+        f0 = feats_med[0]  # C
+        f1 = feats_med[1]  # 2C
 
-        x_up_0 = self.up_0(x)
-        dec_x = f0 + x_up_0
-        x = self.dec_block_0(dec_x)
+        # 从 MedNeXt 的第三层特征（4C）开始送入两层 RWKV
+        rwkv_feats_2, rwkv_feats_3 = self.rwkv_enc.forward_from_feat(feats_med[2])
 
-        out_0 = self.out_0(x)
+        # 第三、第四层：MedNeXt + RWKV，concat + 1x1x1 卷积融合
+        f2 = self.fuse2(feats_med[2], rwkv_feats_2)  # 4C
+        f3 = self.fuse3(feats_med[3], rwkv_feats_3)  # 8C
 
-        if self.do_ds:
-            x_ds_1 = self.out_1(f1)
-            x_ds_2 = self.out_2(f2)
-            x_ds_3 = self.out_3(f3)
-            x_ds_4 = self.out_4(bottleneck)
-            return [out_0, x_ds_1, x_ds_2, x_ds_3, x_ds_4]
-        else:
-            return out_0
+        # bottleneck：从融合后的 8C 特征进入 MedNeXt 原始 bottleneck，输出 16C
+        f4 = self.mednext_enc.forward_from_fused_bottleneck(f3)
+
+        return [f0, f1, f2, f3, f4]
 
