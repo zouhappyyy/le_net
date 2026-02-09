@@ -44,7 +44,7 @@ class nnUNetTrainerV2_Double_RWKV_MedNeXt(nnUNetTrainerV2_Optim_and_LR):
 
         self.network = Double_RWKV_MedNeXt(
             in_channels=self.num_input_channels,
-            n_channels=32,
+            n_channels=8,
             n_classes=self.num_classes,
             exp_r=2,
             kernel_size=3,

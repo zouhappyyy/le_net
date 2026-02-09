@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-from timm.layers import DropPath, create_act_layer,  LayerType
+from timm.models.layers import DropPath
 from torch.utils.cpp_extension import load
 T_MAX = 1024
 inplace = True
