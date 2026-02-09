@@ -86,12 +86,8 @@ class MedNeXt_EncoderOnly(MedNeXt_Orig):
     def forward_from_fused_bottleneck(self, fused_feat: torch.Tensor) -> torch.Tensor:
         """从已经融合后的 encoder 特征进入 bottleneck。
 
-        参数:
-            fused_feat: 空间尺寸与 enc\_block\_3 输出下采样后一致，通道与原来 bottleneck 输入一致的特征，
-                        例如经过双分支融合后的 8C 特征。
-
-        返回:
-            bottleneck: 经过 MedNeXt 原始 bottleneck 模块后的特征 (16C)。
+        注意: 这里的 fused_feat 必须具有与原始 MedNeXt bottleneck 输入相同的通道数 (16 * C)
+        和空间尺寸，也就是 down_3(enc_block_3) 的输出形状。
         """
         bottleneck = self.bottleneck(fused_feat)
         return bottleneck
@@ -99,7 +95,7 @@ class MedNeXt_EncoderOnly(MedNeXt_Orig):
 
 class Double_RWKV_MedNeXt_Encoder(nn.Module):
     """双分支编码器：前两层仅 MedNeXt，第三/第四层与 RWKV 双分支 concat+1x1 卷积融合；
-    bottleneck 从融合后的 8C 特征进入 MedNeXt 原始 bottleneck。
+    bottleneck 从融合后的特征映射到 16C 后进入 MedNeXt 原始 bottleneck。
     """
 
     def __init__(
@@ -161,6 +157,17 @@ class Double_RWKV_MedNeXt_Encoder(nn.Module):
         self.fuse2 = FusionBlock3D(4 * C, 4 * Cr, 4 * C, mode=fusion_mode)
         self.fuse3 = FusionBlock3D(8 * C, 8 * Cr, 8 * C, mode=fusion_mode)
 
+        # 将融合后的 8C 特征映射到 16C，以满足 MedNeXt bottleneck 的输入通道要求
+        if dim == "2d":
+            conv1x1 = nn.Conv2d
+        else:
+            conv1x1 = nn.Conv3d
+        self.bottleneck_in_proj = nn.Sequential(
+            conv1x1(8 * C, 16 * C, kernel_size=1, bias=False),
+            nn.BatchNorm3d(16 * C) if dim == "3d" else nn.BatchNorm2d(16 * C),
+            nn.SiLU(inplace=True),
+        )
+
     def forward(self, x: torch.Tensor):
         # MedNeXt 多尺度特征：[C, 2C, 4C, 8C, 16C]
         feats_med = self.mednext_enc.forward_encoder(x)
@@ -176,8 +183,9 @@ class Double_RWKV_MedNeXt_Encoder(nn.Module):
         f2 = self.fuse2(feats_med[2], rwkv_feats_2)  # 4C
         f3 = self.fuse3(feats_med[3], rwkv_feats_3)  # 8C
 
-        # bottleneck：从融合后的 8C 特征进入 MedNeXt 原始 bottleneck，输出 16C
-        f4 = self.mednext_enc.forward_from_fused_bottleneck(f3)
+        # bottleneck：先将融合后的 8C 特征投影到 16C，再进入 MedNeXt 原始 bottleneck，输出 16C
+        f3_for_bottleneck = self.bottleneck_in_proj(f3)
+        f4 = self.mednext_enc.forward_from_fused_bottleneck(f3_for_bottleneck)
 
         return [f0, f1, f2, f3, f4]
 
