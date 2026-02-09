@@ -94,8 +94,8 @@ class MedNeXt_EncoderOnly(MedNeXt_Orig):
 
 
 class Double_RWKV_MedNeXt_Encoder(nn.Module):
-    """双分支编码器：前两层仅 MedNeXt，第三/第四层与 RWKV 双分支 concat+1x1 卷积融合；
-    bottleneck 从融合后的特征映射到 16C 后进入 MedNeXt 原始 bottleneck。
+    """双分支编码器：前两层仅 MedNeXt，第三/第四层与 RWKV 双分支融合；
+    bottleneck 处也使用 RWKV 融合的 16C 特征再送入 MedNeXt 原始 bottleneck。
     """
 
     def __init__(
@@ -147,26 +147,16 @@ class Double_RWKV_MedNeXt_Encoder(nn.Module):
             grn=grn,
         )
 
-        # RWKV encoder: new constructor only needs base_ch and dim
+        # RWKV encoder
         self.rwkv_enc = RWKV_UNet_3D_Encoder(base_ch=rwkv_base_ch, dim=dim)
 
         C = n_channels
         Cr = rwkv_base_ch
 
-        # 第三、第四层用 concat+1x1x1 卷积融合（前两层不融合）
-        self.fuse2 = FusionBlock3D(4 * C, 4 * Cr, 4 * C, mode=fusion_mode)
-        self.fuse3 = FusionBlock3D(8 * C, 8 * Cr, 8 * C, mode=fusion_mode)
-
-        # 将融合后的 8C 特征映射到 16C，以满足 MedNeXt bottleneck 的输入通道要求
-        if dim == "2d":
-            conv1x1 = nn.Conv2d
-        else:
-            conv1x1 = nn.Conv3d
-        self.bottleneck_in_proj = nn.Sequential(
-            conv1x1(8 * C, 16 * C, kernel_size=1, bias=False),
-            nn.BatchNorm3d(16 * C) if dim == "3d" else nn.BatchNorm2d(16 * C),
-            nn.SiLU(inplace=True),
-        )
+        # 4C、8C、16C 三个层级的融合块
+        self.fuse2 = FusionBlock3D(4 * C, 4 * Cr, 4 * C, mode=fusion_mode)   # 对应 feats_med[2]
+        self.fuse3 = FusionBlock3D(8 * C, 8 * Cr, 8 * C, mode=fusion_mode)   # 对应 feats_med[3]
+        self.fuse4 = FusionBlock3D(16 * C, 16 * Cr, 16 * C, mode=fusion_mode)  # 对应 bottleneck 输入
 
     def forward(self, x: torch.Tensor):
         # MedNeXt 多尺度特征：[C, 2C, 4C, 8C, 16C]
@@ -176,16 +166,28 @@ class Double_RWKV_MedNeXt_Encoder(nn.Module):
         f0 = feats_med[0]  # C
         f1 = feats_med[1]  # 2C
 
-        # 从 MedNeXt 的第三层特征（4C）开始送入两层 RWKV
-        rwkv_feats_2, rwkv_feats_3 = self.rwkv_enc.forward_from_feat(feats_med[2])
+        # 从 MedNeXt 的第三层特征（4C）开始送入 RWKV 编码器
+        rwkv_feat_2, rwkv_feat_3, rwkv_feat_4 = self.rwkv_enc.forward_from_feat(feats_med[2])
 
-        # 第三、第四层：MedNeXt + RWKV，concat + 1x1x1 卷积融合
-        f2 = self.fuse2(feats_med[2], rwkv_feats_2)  # 4C
-        f3 = self.fuse3(feats_med[3], rwkv_feats_3)  # 8C
+        # 4C、8C 层：MedNeXt + RWKV 融合，用作 skip 连接
+        f2 = self.fuse2(feats_med[2], rwkv_feat_2)  # 4C
+        f3 = self.fuse3(feats_med[3], rwkv_feat_3)  # 8C
 
-        # bottleneck：先将融合后的 8C 特征投影到 16C，再进入 MedNeXt 原始 bottleneck，输出 16C
-        f3_for_bottleneck = self.bottleneck_in_proj(f3)
-        f4 = self.mednext_enc.forward_from_fused_bottleneck(f3_for_bottleneck)
+        # 16C 层：使用 MedNeXt bottleneck 输入（down_3 输出）与 RWKV 16C 特征融合，再送入原始 bottleneck
+        # MedNeXt_EncoderOnly 的 forward_encoder 中，bottleneck 输入就是 self.down_3(enc_block_3) 的输出
+        # 这里我们需要重新走一遍这一段以拿到 bottleneck 之前的 16C 特征
+        x_stem = self.mednext_enc.stem(x)
+        x0 = self.mednext_enc.enc_block_0(x_stem)
+        x = self.mednext_enc.down_0(x0)
+        x1 = self.mednext_enc.enc_block_1(x)
+        x = self.mednext_enc.down_1(x1)
+        x2 = self.mednext_enc.enc_block_2(x)
+        x = self.mednext_enc.down_2(x2)
+        x3 = self.mednext_enc.enc_block_3(x)
+        x_down3 = self.mednext_enc.down_3(x3)  # 16C, bottleneck 输入
+
+        fused_bottleneck_in = self.fuse4(x_down3, rwkv_feat_4)  # 16C
+        f4 = self.mednext_enc.forward_from_fused_bottleneck(fused_bottleneck_in)  # 16C, bottleneck 输出
 
         return [f0, f1, f2, f3, f4]
 

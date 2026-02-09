@@ -266,13 +266,15 @@ class Downsample3D(nn.Module):
 
 
 class RWKV_UNet_3D_Encoder(nn.Module):
-    """Two-stage 3D RWKV encoder used as the RWKV branch in Double_RWKV_MedNeXt.
+    """Three-step 3D RWKV encoder branch for Double_RWKV_MedNeXt.
 
-    This encoder does NOT process the raw image directly in our usage.
-    Instead, it is fed with MedNeXt's third encoder feature (4C channels)
-    via `forward_from_feat` and produces two scales of RWKV features:
-        - 4 * base_ch (same spatial size as input feat)
-        - 8 * base_ch (downsampled by 2)
+    Usage in Double_RWKV_MedNeXt:
+      - 输入为 MedNeXt 第三层 encoder 特征 (4C 通道): feats_med[2]
+      - 本分支经过两个 RWKV stage, 每个 stage 包含 GLSP3D + Downsample3D
+      - 最终输出三个尺度的 RWKV 特征:
+          * rwkv_feat_2: 4C, 与 MedNeXt feats_med[2] 同分辨率
+          * rwkv_feat_3: 8C, 与 MedNeXt feats_med[3] 同分辨率
+          * rwkv_feat_4: 16C, 与 MedNeXt bottleneck 输入同通道数与分辨率
     """
 
     def __init__(self, base_ch: int = 32, dim: str = "3d"):
@@ -287,7 +289,7 @@ class RWKV_UNet_3D_Encoder(nn.Module):
         # MedNeXt 第三层特征通道为 4 * C，这里假设 base_ch == C
         in_ch_med2 = 4 * base_ch
 
-        # 1x1x1 conv to align MedNeXt 4C feature to RWKV 4Cr (Cr=base_ch)
+        # 1x1x1 conv to align MedNeXt 4C feature to RWKV 4C
         self.in_proj = Conv(
             in_channels=in_ch_med2,
             out_channels=4 * base_ch,
@@ -297,8 +299,8 @@ class RWKV_UNet_3D_Encoder(nn.Module):
             bias=True,
         )
 
-        # Stage corresponding to 4C (no further downsample here)
-        self.stage2 = GLSP3D(
+        # Stage 2: 4C -> 4C (GLSP3D) -> 8C (Downsample3D)
+        self.stage2_block = GLSP3D(
             dim_in=4 * base_ch,
             dim_out=4 * base_ch,
             has_skip=True,
@@ -309,10 +311,10 @@ class RWKV_UNet_3D_Encoder(nn.Module):
             drop_path=0.0,
             drop=0.0,
         )
+        self.stage2_down = Downsample3D(4 * base_ch, 8 * base_ch)
 
-        # Downsample to 8C and another GLSP3D block at that scale
-        self.down_3 = Downsample3D(4 * base_ch, 8 * base_ch)
-        self.stage3 = GLSP3D(
+        # Stage 3: 8C -> 8C (GLSP3D) -> 16C (Downsample3D)
+        self.stage3_block = GLSP3D(
             dim_in=8 * base_ch,
             dim_out=8 * base_ch,
             has_skip=True,
@@ -323,6 +325,7 @@ class RWKV_UNet_3D_Encoder(nn.Module):
             drop_path=0.0,
             drop=0.0,
         )
+        self.stage3_down = Downsample3D(8 * base_ch, 16 * base_ch)
 
     def forward_from_feat(self, feat_med_2: torch.Tensor):
         """Forward starting from MedNeXt's third encoder feature (4C).
@@ -331,14 +334,22 @@ class RWKV_UNet_3D_Encoder(nn.Module):
             feat_med_2: tensor of shape (B, 4*C, D, H, W)
 
         Returns:
-            rwkv_feat_2: tensor of shape (B, 4*base_ch, D, H, W)
-            rwkv_feat_3: tensor of shape (B, 8*base_ch, D/2, H/2, W/2)
+            rwkv_feat_2: (B, 4*C, D,   H,   W  )  # 对应 MedNeXt feats_med[2]
+            rwkv_feat_3: (B, 8*C, D/2, H/2, W/2)  # 对应 MedNeXt feats_med[3]
+            rwkv_feat_4: (B,16*C, D/4, H/4, W/4)  # 对应 MedNeXt bottleneck 输入
         """
-        x = self.in_proj(feat_med_2)          # (B, 4*base_ch, ...)
-        rwkv_feat_2 = self.stage2(x)
+        # 对齐输入通道到 4C
+        x = self.in_proj(feat_med_2)          # (B, 4*C, ...)
 
-        x = self.down_3(rwkv_feat_2)          # (B, 8*base_ch, .../2)
-        rwkv_feat_3 = self.stage3(x)
+        # Stage2: RWKV + Downsample
+        x2 = self.stage2_block(x)            # (B, 4*C, D, H, W)
+        rwkv_feat_2 = x2
+        x3_in = self.stage2_down(x2)         # (B, 8*C, D/2, H/2, W/2)
 
-        return rwkv_feat_2, rwkv_feat_3
+        # Stage3: RWKV + Downsample
+        x3 = self.stage3_block(x3_in)        # (B, 8*C, D/2, H/2, W/2)
+        rwkv_feat_3 = x3
+        x4 = self.stage3_down(x3)            # (B, 16*C, D/4, H/4, W/4)
+        rwkv_feat_4 = x4
 
+        return rwkv_feat_2, rwkv_feat_3, rwkv_feat_4
