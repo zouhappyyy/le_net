@@ -3,6 +3,11 @@ import torch.nn as nn
 
 from nnunet_mednext.network_architecture.mednextv1.MedNextV1 import MedNeXt as MedNeXt_Orig
 from nnunet_mednext.network_architecture.le_networks.GLSP3D_RWKV import RWKV_UNet_3D_Encoder
+from nnunet_mednext.network_architecture.mednextv1.blocks import (
+    MedNeXtUpBlock,
+    MedNeXtBlock,
+    OutBlock,
+)
 
 
 class FusionBlock3D(nn.Module):
@@ -146,8 +151,8 @@ class Double_RWKV_MedNeXt_Encoder(nn.Module):
             grn=grn,
         )
 
-        # RWKV encoder（内部实现 forward_from_feat，只吃 4C 特征）
-        self.rwkv_enc = RWKV_UNet_3D_Encoder(in_ch=in_channels, base_ch=rwkv_base_ch)
+        # RWKV encoder: new constructor only needs base_ch and dim
+        self.rwkv_enc = RWKV_UNet_3D_Encoder(base_ch=rwkv_base_ch, dim=dim)
 
         C = n_channels
         Cr = rwkv_base_ch
@@ -176,16 +181,6 @@ class Double_RWKV_MedNeXt_Encoder(nn.Module):
 
         return [f0, f1, f2, f3, f4]
 
-
-
-from nnunet_mednext.network_architecture.mednextv1.blocks import (
-    MedNeXtUpBlock,
-    MedNeXtBlock,
-    OutBlock,
-)
-from nnunet_mednext.network_architecture.le_networks.Double_RWKV_MedNeXt import (
-    Double_RWKV_MedNeXt_Encoder,
-)
 
 
 class Double_RWKV_MedNeXt(nn.Module):
