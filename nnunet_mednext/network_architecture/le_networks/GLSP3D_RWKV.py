@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 from timm.models.layers import DropPath
 from torch.utils.cpp_extension import load
-T_MAX = 1024
+T_MAX = 4096
 inplace = True
 wkv_cuda = load(name="wkv", sources=["cuda/wkv_op.cpp", "cuda/wkv_cuda.cu"],
                 verbose=True, extra_cuda_cflags=['-res-usage', '--maxrregcount 60', '--use_fast_math', '-O3', '-Xptxas -O3', f'-DTmax={T_MAX}'])
@@ -265,34 +265,80 @@ class Downsample3D(nn.Module):
 
 
 
-
 class RWKV_UNet_3D_Encoder(nn.Module):
-    def __init__(self, in_ch: int = 1, base_ch: int = 32):
+    """Two-stage 3D RWKV encoder used as the RWKV branch in Double_RWKV_MedNeXt.
+
+    This encoder does NOT process the raw image directly in our usage.
+    Instead, it is fed with MedNeXt's third encoder feature (4C channels)
+    via `forward_from_feat` and produces two scales of RWKV features:
+        - 4 * base_ch (same spatial size as input feat)
+        - 8 * base_ch (downsampled by 2)
+    """
+
+    def __init__(self, base_ch: int = 32, dim: str = "3d"):
         super().__init__()
+        self.base_ch = base_ch
 
-        Cr = base_ch
+        if dim == "2d":
+            Conv = nn.Conv2d
+        else:
+            Conv = nn.Conv3d
 
-        # 注意：这个 stem/stage1/2 用在「从中间特征开始」的 forward_from_feat 中
-        # 输入通道数由外部保证对齐，这里使用 1x1 调整
-        self.in_proj = nn.Conv3d(in_ch, Cr * 4, kernel_size=1, bias=False)
+        # MedNeXt 第三层特征通道为 4 * C，这里假设 base_ch == C
+        in_ch_med2 = 4 * base_ch
 
-        # 第三层（对应 MedNeXt 4C 尺度）：输出 4Cr
-        self.stage2 = nn.Sequential(
-            GLSP3D(Cr * 4, Cr * 4),
-            Downsample3D(Cr * 4, Cr * 8),
+        # 1x1x1 conv to align MedNeXt 4C feature to RWKV 4Cr (Cr=base_ch)
+        self.in_proj = Conv(
+            in_channels=in_ch_med2,
+            out_channels=4 * base_ch,
+            kernel_size=1,
+            stride=1,
+            padding=0,
+            bias=True,
         )
 
-        # 第四层（对应 MedNeXt 8C 尺度）：输出 8Cr
-        self.stage3 = nn.Sequential(
-            GLSP3D(Cr * 8, Cr * 8),
+        # Stage corresponding to 4C (no further downsample here)
+        self.stage2 = GLSP3D(
+            dim_in=4 * base_ch,
+            dim_out=4 * base_ch,
+            has_skip=True,
+            exp_ratio=1.0,
+            dw_ks=3,
+            stride=1,
+            se_ratio=0.0,
+            drop_path=0.0,
+            drop=0.0,
+        )
+
+        # Downsample to 8C and another GLSP3D block at that scale
+        self.down_3 = Downsample3D(4 * base_ch, 8 * base_ch)
+        self.stage3 = GLSP3D(
+            dim_in=8 * base_ch,
+            dim_out=8 * base_ch,
+            has_skip=True,
+            exp_ratio=1.0,
+            dw_ks=3,
+            stride=1,
+            se_ratio=0.0,
+            drop_path=0.0,
+            drop=0.0,
         )
 
     def forward_from_feat(self, feat_med_2: torch.Tensor):
-        # feat_med_2: [B, 4C, D, H, W] -> 先投影到 4Cr
-        x = self.in_proj(feat_med_2)     # [B, 4Cr, ...]
-        r2 = x                           # 对应 4Cr
+        """Forward starting from MedNeXt's third encoder feature (4C).
 
-        x = self.stage2(x)               # [B, 8Cr, ...] 下采样一层
-        r3 = self.stage3(x)              # [B, 8Cr, ...] 再做一层 GLSP
+        Args:
+            feat_med_2: tensor of shape (B, 4*C, D, H, W)
 
-        return r2, r3
+        Returns:
+            rwkv_feat_2: tensor of shape (B, 4*base_ch, D, H, W)
+            rwkv_feat_3: tensor of shape (B, 8*base_ch, D/2, H/2, W/2)
+        """
+        x = self.in_proj(feat_med_2)          # (B, 4*base_ch, ...)
+        rwkv_feat_2 = self.stage2(x)
+
+        x = self.down_3(rwkv_feat_2)          # (B, 8*base_ch, .../2)
+        rwkv_feat_3 = self.stage3(x)
+
+        return rwkv_feat_2, rwkv_feat_3
+
