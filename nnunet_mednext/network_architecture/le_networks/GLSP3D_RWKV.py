@@ -94,6 +94,7 @@ class WKV(torch.autograd.Function):
         ctx.B = B
         ctx.T = T
         ctx.C = C
+        # print("WKV assert failed: T =", T, "T_MAX =", T_MAX)
         assert T <= T_MAX
         assert B * C % min(C, 1024) == 0
 

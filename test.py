@@ -1,8 +1,8 @@
 import pickle
 
 plan_path = ("/home/fangzheng/zoule/ESO_nnUNet_dataset/"
-             "nnUNet_preprocessed/Task505_EsoTJ_10pct/"
-             "nnUNetPlansv2.1_trgSp_1x1x1_rwkv.pkl")
+             "nnUNet_preprocessed/Task530_EsoTJ_30pct/"
+             "nnUNetPlansv2.1_trgSp_1x1x1_rwkv_plans_3D.pkl")
 
 with open(plan_path, "rb") as f:
     plans = pickle.load(f)
