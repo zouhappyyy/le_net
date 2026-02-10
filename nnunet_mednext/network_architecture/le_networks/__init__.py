@@ -1,1 +1,2 @@
 from .Double_RWKV_MedNeXt import Double_RWKV_MedNeXt, Double_RWKV_MedNeXt_Encoder
+from .Double_UPSam_RWKV_MedNeXt import Double_UpSam_RWKV_MedNeXt
