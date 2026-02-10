@@ -15,7 +15,7 @@ print("OLD patch size:", conf["patch_size"])
 conf["patch_size"] = [64, 64, 64]
 
 # 可选：减小 batch size（更稳）
-conf["batch_size"] = 1
+conf["batch_size"] = 4
 
 with open(plan_path, "wb") as f:
     pickle.dump(plans, f)

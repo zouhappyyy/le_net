@@ -44,7 +44,7 @@ class nnUNetTrainerV2_Double_RWKV_MedNeXt(nnUNetTrainerV2_Optim_and_LR):
 
         self.network = Double_RWKV_MedNeXt(
             in_channels=self.num_input_channels,
-            n_channels=8,
+            n_channels=16,
             n_classes=self.num_classes,
             exp_r=2,
             kernel_size=3,
@@ -60,7 +60,7 @@ class nnUNetTrainerV2_Double_RWKV_MedNeXt(nnUNetTrainerV2_Optim_and_LR):
         )
 
         # You can adjust batch size depending on memory constraints
-        self.batch_size = 1
+        self.batch_size = 4
 
         if torch.cuda.is_available():
             self.network.cuda()

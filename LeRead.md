@@ -9,11 +9,12 @@ mednextv1_train 3d_fullres nnUNetTrainerV2_Med_FDConv_Att 505 0 -p nnUNetPlansv2
 mednextv1_train 3d_fullres nnUNetTrainerV2_Double_RWKV_MedNeXt 505 0 -p nnUNetPlansv2.1_trgSp_1x1x1
 mednextv1_train 3d_fullres nnUNetTrainerV2_Double_RWKV_MedNeXt 505 0 -p nnUNetPlansv2.1_trgSp_1x1x1_rwkv
 nohup mednextv1_train 3d_fullres nnUNetTrainerV2_MedNeXt_S_kernel3 505 0 -p nnUNetPlansv2.1_trgSp_1x1x1 > ./log/MedNeXt_S_kernel3_task505_fold0_train.log 2>&1 &
+nohup mednextv1_train 3d_fullres nnUNetTrainerV2_MedNeXt_S_kernel3 530 1 -p nnUNetPlansv2.1_trgSp_1x1x1_rwkv > ./log/MedNeXt_S_kernel3_b4_task530_fold1_train.log 2>&1 &
 nohup mednextv1_train 3d_fullres nnUNetTrainerV2_MyMedNext 505 0 -p nnUNetPlansv2.1_trgSp_1x1x1 > ./log/le_fdconv_task505_fold0_train.log 2>&1 &
 nohup mednextv1_train 3d_fullres nnUNetTrainerV2_Med_FDConv_Att 505 0 -p nnUNetPlansv2.1_trgSp_1x1x1 > ./log/le_fdconv_att_task505_fold0_train.log 2>&1 &
 nohup mednextv1_train 3d_fullres nnUNetTrainerV2_Double_RWKV_MedNeXt 505 0 -p nnUNetPlansv2.1_trgSp_1x1x1_rwkv > ./log/le_db_rwkv_task505_fold0_train.log 2>&1 &
 nohup mednextv1_train 3d_fullres nnUNetTrainerV2_Double_RWKV_MedNeXt 530 0 -p nnUNetPlansv2.1_trgSp_1x1x1_rwkv > ./log/le_db_rwkv_task530_fold0_train.log 2>&1 &
-nohup mednextv1_train 3d_fullres nnUNetTrainerV2_Double_RWKV_MedNeXt 530 1 -p nnUNetPlansv2.1_trgSp_1x1x1_rwkv > ./log/le_db_rwkv_task530_fold1_train.log 2>&1 &
+nohup mednextv1_train 3d_fullres nnUNetTrainerV2_Double_RWKV_MedNeXt 530 1 -p nnUNetPlansv2.1_trgSp_1x1x1_rwkv > ./log/le_db_rwkv_task530_fold1_b4c16_train.log 2>&1 &
 
 # 3) 训练所有 5 个 folds（示例循环）
 for F in 0 1 2 3 4; do

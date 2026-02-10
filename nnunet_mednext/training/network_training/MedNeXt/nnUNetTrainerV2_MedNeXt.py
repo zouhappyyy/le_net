@@ -42,7 +42,13 @@ class nnUNetTrainerV2_Optim_and_LR(nnUNetTrainerV2):
 
 
 class nnUNetTrainerV2_MedNeXt_S_kernel3(nnUNetTrainerV2_Optim_and_LR):   
-    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # unify max epochs as in your other custom trainers
+        self.max_epochs = 300
+        if hasattr(self, "max_num_epochs"):
+            self.max_num_epochs = 300
+
     def initialize_network(self):
         self.network = MedNeXt(
             in_channels = self.num_input_channels, 
@@ -122,7 +128,7 @@ class nnUNetTrainerV2_MedNeXt_L_kernel3(nnUNetTrainerV2_Optim_and_LR):
 
 
 # Kernels of size 5
-class nnUNetTrainerV2_MedNeXt_S_kernel5(nnUNetTrainerV2_Optim_and_LR):   
+class nnUNetTrainerV2_MedNeXt_S_kernel5(nnUNetTrainerV2_Optim_and_LR):
 
     def initialize_network(self):
         self.network = MedNeXt(
