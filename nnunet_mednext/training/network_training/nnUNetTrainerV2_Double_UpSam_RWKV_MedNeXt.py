@@ -1,7 +1,10 @@
-from nnunet_mednext.network_architecture.le_networks import Double_UpSam_RWKV_MedNeXt
+
 from nnunet_mednext.training.network_training.MedNeXt.nnUNetTrainerV2_MedNeXt import (
     nnUNetTrainerV2_Optim_and_LR,
 )
+from nnunet_mednext.network_architecture.le_networks import Double_UpSam_RWKV_MedNeXt
+import torch.nn as nn
+
 
 class nnUNetTrainerV2_Double_UpSam_RWKV_MedNeXt(nnUNetTrainerV2_Optim_and_LR):
     """nnUNet Trainer using Double_UpSam_RWKV_MedNeXt as the backbone.
@@ -17,10 +20,9 @@ class nnUNetTrainerV2_Double_UpSam_RWKV_MedNeXt(nnUNetTrainerV2_Optim_and_LR):
         # Some parent trainers may define use_amp; be defensive
         use_amp = getattr(self, "use_amp", False)
 
-        # 这里使用与 Double_RWKV_MedNeXt 相同的默认配置
         self.network = Double_UpSam_RWKV_MedNeXt(
             in_channels=self.num_input_channels,
-            n_channels=16,
+            n_channels=8,
             n_classes=self.num_classes,
             exp_r=2,
             kernel_size=3,
@@ -36,10 +38,12 @@ class nnUNetTrainerV2_Double_UpSam_RWKV_MedNeXt(nnUNetTrainerV2_Optim_and_LR):
             rwkv_block_dec=self._build_rwkv_dec_block(),
         )
 
-        if self.cuda:
-            self.network.cuda()
+        # 将网络移动到 trainer 配置好的 device（通常是 GPU）
+        self.network.to(self.device)
 
+        # 设置推理时的非线性激活
         self.network.inference_apply_nonlin = self.inference_apply_nonlin
+        self.batch_size = 1
 
     def _build_rwkv_dec_block(self):
         """构造一个 (B, N, C) -> (B, N, C) 的 RWKV 解码序列模块。
@@ -47,6 +51,4 @@ class nnUNetTrainerV2_Double_UpSam_RWKV_MedNeXt(nnUNetTrainerV2_Optim_and_LR):
         这里为了保持通用性，默认直接返回 nn.Identity()，即只保留 RSU 的 γ/β 线性调制结构。
         如果你已经实现了专门的 3D RWKV/GLSP block，可在此处替换为真正的模块。
         """
-        import torch.nn as nn
-
         return nn.Identity()
