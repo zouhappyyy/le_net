@@ -61,4 +61,4 @@ class nnUNetTrainerV2_Double_UpSam_RWKV_MedNeXt(nnUNetTrainerV2_Optim_and_LR):
             self.network.cuda()
 
         # 显存友好，可以按需调整 batch_size
-        self.batch_size = 1
+        self.batch_size = 4
