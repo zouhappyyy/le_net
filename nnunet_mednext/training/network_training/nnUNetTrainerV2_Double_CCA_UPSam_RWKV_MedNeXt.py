@@ -5,23 +5,36 @@ from nnunet_mednext.training.network_training.MedNeXt.nnUNetTrainerV2_MedNeXt im
     nnUNetTrainerV2_Optim_and_LR,
 )
 from nnunet_mednext.network_architecture.le_networks import (
-    Double_CCA_UPSam_RWKV_MedNeXt as _Double_CCA_UPSam_RWKV_MedNeXt,
+    Double_CCA_UPSam_RWKV_MedNeXt as Double_CCA_UPSam_RWKV_MedNeXt_Orig,
 )
 from nnunet_mednext.utilities.nd_softmax import softmax_helper
 from nnunet_mednext.network_architecture.neural_network import SegmentationNetwork
 
 
-class Double_CCA_UPSam_RWKV_MedNeXt(_Double_CCA_UPSam_RWKV_MedNeXt, SegmentationNetwork):
-    """Wrap Double_CCA_UPSam_RWKV_MedNeXt to be compatible with nnUNet SegmentationNetwork API."""
+class Double_CCA_UPSam_RWKV_MedNeXt(SegmentationNetwork):
+    """Thin SegmentationNetwork wrapper around Double_CCA_UPSam_RWKV_MedNeXt_Orig.
+
+    避免与原始网络类的 metaclass 冲突：
+      - 这里继承 SegmentationNetwork；
+      - 内部持有一个实际的 mednext-style 子网络 self.net；
+      - forward 时直接调用 self.net(x)；
+      - 并设置 nnUNet 所需的一些属性（conv_op, inference_apply_nonlin, input_shape_must_be_divisible_by, num_classes）。
+    """
 
     def __init__(self, *args, **kwargs):
-        """Signature follows MedNeXt / MyMedNext: in_channels, n_channels, n_classes, ..."""
-        super().__init__(*args, **kwargs)
+        super().__init__()
+
+        # 实际的 MedNeXt 派生网络
+        self.net = Double_CCA_UPSam_RWKV_MedNeXt_Orig(*args, **kwargs)
+
         # nnUNet evaluation / inference interface
         self.conv_op = nn.Conv3d
         self.inference_apply_nonlin = softmax_helper
         self.input_shape_must_be_divisible_by = 2 ** 5
         self.num_classes = kwargs["n_classes"]
+
+    def forward(self, x):
+        return self.net(x)
 
 
 class nnUNetTrainerV2_Double_CCA_UPSam_RWKV_MedNeXt(nnUNetTrainerV2_Optim_and_LR):
