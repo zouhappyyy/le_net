@@ -4,7 +4,8 @@ import torch.nn as nn
 from nnunet_mednext.training.network_training.MedNeXt.nnUNetTrainerV2_MedNeXt import (
     nnUNetTrainerV2_Optim_and_LR,
 )
-from nnunet_mednext.network_architecture.le_networks import (
+# 直接从具体网络文件导入类，避免通过 le_networks 包装成模块
+from nnunet_mednext.network_architecture.le_networks.Double_CCA_UPSam_RWKV_MedNeXt import (
     Double_CCA_UPSam_RWKV_MedNeXt as Double_CCA_UPSam_RWKV_MedNeXt_Orig,
 )
 from nnunet_mednext.utilities.nd_softmax import softmax_helper
