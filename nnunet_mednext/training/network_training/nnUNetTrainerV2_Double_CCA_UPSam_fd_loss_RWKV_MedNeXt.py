@@ -84,3 +84,23 @@ class nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt(nnUNetTrainerV2_Opti
             edge_weight_f0=self.edge_loss_weight_f0,
             edge_weight_f1=self.edge_loss_weight_f1,
         )
+
+    def run_online_evaluation(self, output, target):
+        """适配 fd+loss 网络的在线验证接口。
+
+        原版 nnUNetTrainer.run_online_evaluation 期望 output 是单个 logits tensor，
+        这里网络 forward 返回的是 (seg_outputs, edge_logit_f0, edge_logit_f1)，
+        我们只将主分支 seg_outputs[0] 作为 logits 传递给父类的实现。
+        """
+        if isinstance(output, (tuple, list)) and len(output) == 3:
+            seg_outputs, edge_logit_f0, edge_logit_f1 = output
+            # seg_outputs 本身是 deep supervision 的 list，取最高分辨率的主输出用于评估
+            if isinstance(seg_outputs, (tuple, list)):
+                output_main = seg_outputs[0]
+            else:
+                output_main = seg_outputs
+        else:
+            # 回退：保持与父类兼容
+            output_main = output
+
+        return super().run_online_evaluation(output_main, target)
