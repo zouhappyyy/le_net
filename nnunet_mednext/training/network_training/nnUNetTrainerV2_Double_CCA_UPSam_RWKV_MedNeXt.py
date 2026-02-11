@@ -25,14 +25,16 @@ class Double_CCA_UPSam_RWKV_MedNeXt(SegmentationNetwork):
     def __init__(self, *args, **kwargs):
         super().__init__()
 
-        # 实际的 MedNeXt 派生网络
+        # 实际的 CCA + LRDU MedNeXt 派生网络
         self.net = Double_CCA_UPSam_RWKV_MedNeXt_Orig(*args, **kwargs)
 
         # nnUNet evaluation / inference interface
         self.conv_op = nn.Conv3d
         self.inference_apply_nonlin = softmax_helper
         self.input_shape_must_be_divisible_by = 2 ** 5
+        # 从内部网络透传类别数和 deep supervision 开关
         self.num_classes = kwargs["n_classes"]
+        self.do_ds = getattr(self.net, "do_ds", False)
 
     def forward(self, x):
         return self.net(x)
