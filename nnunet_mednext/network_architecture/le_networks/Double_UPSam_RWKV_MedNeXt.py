@@ -2,19 +2,20 @@ import torch
 import torch.nn as nn
 
 from .Double_RWKV_MedNeXt import Double_RWKV_MedNeXt_Encoder
-from nnunet_mednext.network_architecture.mednextv1.blocks import MedNeXtBlock, MedNeXtUpBlock, OutBlock
-from .RSU import CrossStageRWKVSementicUpsampling3D
+from nnunet_mednext.network_architecture.mednextv1.blocks import MedNeXtBlock, OutBlock
+from .LRDU import LRDU3D
 
 
 class Double_UpSam_RWKV_MedNeXt(nn.Module):
     r"""Double_UpSam_RWKV_MedNeXt
 
-    在 Double_RWKV_MedNeXt 的基础上：
-      - Encoder 结构保持不变，仍然使用 `Double_RWKV_MedNeXt_Encoder`，输出 [C, 2C, 4C, 8C, 16C];
-      - Decoder 部分在每个上采样阶段引入 3D Cross-Stage RWKV Semantic Upsampling 模块，
-        使用来自 encoder 的全局语义状态对上采样特征进行语义调制。
+    在 Double_RWKV_MedNeXt 的基础上，将 decoder 部分全部改为：
+      - 上采样模块：使用 LRDU3D（所有 4 个解码阶段）；
+      - 解码卷积：使用 MedNeXtBlock（所有 4 个解码阶段）；
+    Encoder 结构保持不变，仍然使用 `Double_RWKV_MedNeXt_Encoder`，输出 [C, 2C, 4C, 8C, 16C]；
+    网络构造参数与 Double_RWKV_MedNeXt 保持兼容。
 
-    适用于 3D MedNeXt 解码器（dim="3d"）。
+    当前实现仅支持 3D (dim="3d")。
     """
 
     def __init__(
@@ -36,12 +37,16 @@ class Double_UpSam_RWKV_MedNeXt(nn.Module):
         grn: bool = False,
         fusion_mode: str = "concat",
         rwkv_base_ch: int = None,
-        rwkv_block_dec: nn.Module = None,
+        rwkv_block_dec: nn.Module = None,  # 保留参数以保持与旧版本兼容，但在 LRDU 版本中不使用
     ):
         super().__init__()
 
         self.do_ds = deep_supervision
-        assert dim in ["2d", "3d"], "Double_UpSam_RWKV_MedNeXt is designed mainly for 3d, but 2d is allowed for consistency."
+        assert dim in ["2d", "3d"], "Double_UpSam_RWKV_MedNeXt is designed mainly for 3D."
+        if dim != "3d":
+            raise NotImplementedError(
+                "Double_UpSam_RWKV_MedNeXt with LRDU-based decoder is currently implemented only for 3D (dim='3d')."
+            )
 
         # 统一 kernel_size 设置
         if kernel_size is not None:
@@ -72,34 +77,17 @@ class Double_UpSam_RWKV_MedNeXt(nn.Module):
             rwkv_base_ch=rwkv_base_ch,
         )
 
-        # 原来这里强制要求 rwkv_block_dec 非空，现改为允许为 None：
-        # 当为 None 时，CrossStageRWKVSementicUpsampling3D 会在内部回退到 SP_RWKV 的 PropagationRWKV。
-        # 这使得解码器阶段可以只使用轻量 SP-RWKV，而不依赖 RWKVSeq。
-        # if rwkv_block_dec is None:
-        #     raise AssertionError("rwkv_block_dec must be provided for Double_UpSam_RWKV_MedNeXt")
-
-        if dim == "2d":
-            raise NotImplementedError("Double_UpSam_RWKV_MedNeXt is currently implemented for 3D (dim='3d') only.")
-
         C = n_channels
+        # 将 exp_r 统一展开成列表，方便按层使用 MedNeXtBlock
         if isinstance(exp_r, int):
             exp_r = [exp_r for _ in range(len(block_counts))]
 
-        # ---------- Decoder: 混合 MedNeXtUpBlock 与 3D RSU ----------
-        # 约定：
-        #   - decoder_3, decoder_2（低分辨率，通道 16C, 8C）使用 RSU + MedNeXtBlock；
-        #   - decoder_1, decoder_0（高分辨率，通道 4C, 2C, C）使用原始 MedNeXtUpBlock 上采样。
+        # ---------- Decoder: LRDU3D 上采样 + MedNeXtBlock 解码（4 个阶段一致） ----------
+        lrdu_scale = 2
 
-        # 低分辨率 stage 3: 16C -> 8C，使用 RSU
-        self.rsu_3 = CrossStageRWKVSementicUpsampling3D(
-            in_channels=16 * C,
-            scale_factor=2,
-            rwkv_block=rwkv_block_dec,
-            mode="trilinear",
-            align_corners=False,
-        )
-        # 将 RSU 输出的 16C 通道映射到与 f3 对齐的 8C
-        self.rsu_3_proj = nn.Conv3d(16 * C, 8 * C, kernel_size=1)
+        # stage 3: 16C -> 8C，skip: 8C
+        self.up_3 = LRDU3D(in_channels=16 * C, scale=lrdu_scale)
+        self.proj_3 = nn.Conv3d(16 * C, 8 * C, kernel_size=1, bias=False)
         self.dec_block_3 = nn.Sequential(
             *[
                 MedNeXtBlock(
@@ -116,16 +104,9 @@ class Double_UpSam_RWKV_MedNeXt(nn.Module):
             ]
         )
 
-        # 低分辨率 stage 2: 8C -> 4C，使用 RSU
-        self.rsu_2 = CrossStageRWKVSementicUpsampling3D(
-            in_channels=8 * C,
-            scale_factor=2,
-            rwkv_block=rwkv_block_dec,
-            mode="trilinear",
-            align_corners=False,
-        )
-        # 将 RSU 输出的 8C 通道映射到与 f2 对齐的 4C
-        self.rsu_2_proj = nn.Conv3d(8 * C, 4 * C, kernel_size=1)
+        # stage 2: 8C -> 4C，skip: 4C
+        self.up_2 = LRDU3D(in_channels=8 * C, scale=lrdu_scale)
+        self.proj_2 = nn.Conv3d(8 * C, 4 * C, kernel_size=1, bias=False)
         self.dec_block_2 = nn.Sequential(
             *[
                 MedNeXtBlock(
@@ -142,17 +123,9 @@ class Double_UpSam_RWKV_MedNeXt(nn.Module):
             ]
         )
 
-        # 高分辨率 stage 1: 4C -> 2C，使用原始 MedNeXtUpBlock
-        self.up_1 = MedNeXtUpBlock(
-            in_channels=4 * C,
-            out_channels=2 * C,
-            exp_r=exp_r[7],
-            kernel_size=dec_kernel_size,
-            do_res=do_res_up_down,
-            norm_type=norm_type,
-            dim=dim,
-            grn=grn,
-        )
+        # stage 1: 4C -> 2C，skip: 2C
+        self.up_1 = LRDU3D(in_channels=4 * C, scale=lrdu_scale)
+        self.proj_1 = nn.Conv3d(4 * C, 2 * C, kernel_size=1, bias=False)
         self.dec_block_1 = nn.Sequential(
             *[
                 MedNeXtBlock(
@@ -169,17 +142,9 @@ class Double_UpSam_RWKV_MedNeXt(nn.Module):
             ]
         )
 
-        # 高分辨率 stage 0: 2C -> C，使用原始 MedNeXtUpBlock
-        self.up_0 = MedNeXtUpBlock(
-            in_channels=2 * C,
-            out_channels=C,
-            exp_r=exp_r[8],
-            kernel_size=dec_kernel_size,
-            do_res=do_res_up_down,
-            norm_type=norm_type,
-            dim=dim,
-            grn=grn,
-        )
+        # stage 0: 2C -> C，skip: C
+        self.up_0 = LRDU3D(in_channels=2 * C, scale=lrdu_scale)
+        self.proj_0 = nn.Conv3d(2 * C, C, kernel_size=1, bias=False)
         self.dec_block_0 = nn.Sequential(
             *[
                 MedNeXtBlock(
@@ -196,7 +161,7 @@ class Double_UpSam_RWKV_MedNeXt(nn.Module):
             ]
         )
 
-        # 输出 head
+        # 输出 head，与 Double_RWKV_MedNeXt / MedNeXt 保持一致
         self.out_0 = OutBlock(in_channels=C, n_classes=n_classes, dim=dim)
 
         # deep supervision heads（与 MedNeXt / Double_RWKV_MedNeXt 一致的位置）
@@ -208,12 +173,6 @@ class Double_UpSam_RWKV_MedNeXt(nn.Module):
         else:
             self.out_1 = self.out_2 = self.out_3 = self.out_4 = None
 
-    def _global_pool(self, feat: torch.Tensor) -> torch.Tensor:
-        """全局 3D 池化得到 (B, C) 语义向量，用作 CrossStage conditioning。"""
-        B, C = feat.shape[0], feat.shape[1]
-        # 对 (D,H,W) 做平均池化
-        return feat.view(B, C, -1).mean(dim=-1)
-
     def forward(self, x: torch.Tensor):
         # encoder 返回 [C, 2C, 4C, 8C, 16C]
         f0, f1, f2, f3, f4 = self.encoder(x)
@@ -223,43 +182,37 @@ class Double_UpSam_RWKV_MedNeXt(nn.Module):
         # 初始化 DS 变量，避免未赋值警告
         x_ds_1 = x_ds_2 = x_ds_3 = x_ds_4 = None
 
-        # 从 bottleneck 中提取全局语义向量，供所有解码 stage 共享
-        global_state = self._global_pool(bottleneck)  # (B, 16C) 但 CrossStageRSU3D 期望 (B, in_channels)
-        # 对于不同 stage，我们只需保证传入的 global_state 在通道数上与对应 RSU 的 in_channels 一致。
-        # 简化方案：使用 1x1x1 Conv 将 bottleneck 投影到各层需要的通道数，这里使用池化 + 线性层可以灵活实现。
-
-        # 如果启用 deep supervision，可以在 bottleneck 上直接生成最深层的 DS 输出
         if self.do_ds and self.out_4 is not None:
             x_ds_4 = self.out_4(bottleneck)
 
-        # decoder 3: 16C -> 8C，RSU + skip f3
-        gs_3 = self._global_pool(bottleneck)  # (B,16C)
-        x_up_3 = self.rsu_3(bottleneck, gs_3)  # (B,16C,...)
-        x_up_3 = self.rsu_3_proj(x_up_3)       # (B,8C,...), 与 f3 对齐
-        dec_x = f3 + x_up_3
+        # decoder 3: 16C -> 8C，LRDU3D 上采样 + skip f3 + MedNeXtBlock 解码
+        x_up_3 = self.up_3(bottleneck)          # (B,16C, D/8,...)
+        x_up_3 = self.proj_3(x_up_3)            # (B, 8C,  D/8,...)
+        dec_x = f3 + x_up_3                     # (B, 8C,  D/8,...)
         x = self.dec_block_3(dec_x)
         if self.do_ds and self.out_3 is not None:
             x_ds_3 = self.out_3(x)
 
-        # decoder 2: 8C -> 4C，RSU + skip f2
-        gs_2 = self._global_pool(x)  # x 通道为 8C
-        x_up_2 = self.rsu_2(x, gs_2)  # (B,8C,...)
-        x_up_2 = self.rsu_2_proj(x_up_2)       # (B,4C,...), 与 f2 对齐
-        dec_x = f2 + x_up_2
+        # decoder 2: 8C -> 4C，LRDU3D 上采样 + skip f2 + MedNeXtBlock 解码
+        x_up_2 = self.up_2(x)                   # (B, 8C,  D/4,...)
+        x_up_2 = self.proj_2(x_up_2)            # (B, 4C,  D/4,...)
+        dec_x = f2 + x_up_2                     # (B, 4C,  D/4,...)
         x = self.dec_block_2(dec_x)
         if self.do_ds and self.out_2 is not None:
             x_ds_2 = self.out_2(x)
 
-        # decoder 1: 4C -> 2C，MedNeXtUpBlock + skip f1
-        x_up_1 = self.up_1(x)
-        dec_x = f1 + x_up_1
+        # decoder 1: 4C -> 2C，LRDU3D 上采样 + skip f1 + MedNeXtBlock 解码
+        x_up_1 = self.up_1(x)                   # (B, 4C,  D/2,...)
+        x_up_1 = self.proj_1(x_up_1)            # (B, 2C,  D/2,...)
+        dec_x = f1 + x_up_1                     # (B, 2C,  D/2,...)
         x = self.dec_block_1(dec_x)
         if self.do_ds and self.out_1 is not None:
             x_ds_1 = self.out_1(x)
 
-        # decoder 0: 2C -> C，MedNeXtUpBlock + skip f0
-        x_up_0 = self.up_0(x)
-        dec_x = f0 + x_up_0
+        # decoder 0: 2C -> C，LRDU3D 上采样 + skip f0 + MedNeXtBlock 解码
+        x_up_0 = self.up_0(x)                   # (B, 2C,  D,...)
+        x_up_0 = self.proj_0(x_up_0)            # (B, C,   D,...)
+        dec_x = f0 + x_up_0                     # (B, C,   D,...)
         x = self.dec_block_0(dec_x)
 
         x = self.out_0(x)
