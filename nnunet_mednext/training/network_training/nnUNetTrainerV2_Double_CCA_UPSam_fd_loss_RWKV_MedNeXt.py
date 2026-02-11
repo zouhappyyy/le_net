@@ -103,17 +103,27 @@ class nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt(nnUNetTrainerV2_Opti
         else:
             output_main = output
 
+        # nnUNet V2 中，target 在验证阶段可能是 list/tuple（例如 [target_tensor]）
+        # 父类 run_online_evaluation 期望的是单个 tensor，这里统一展开
+        if isinstance(target, (tuple, list)):
+            if len(target) > 0:
+                target_main = target[0]
+            else:
+                target_main = target
+        else:
+            target_main = target
+
         # --- 调试输出：仅在前几次在线评估时打印 shape 信息 ---
         if self._online_eval_debug_calls < 5:
             try:
                 self.print_to_log_file(
                     f"[DEBUG] run_online_evaluation call {self._online_eval_debug_calls}: "
                     f"output_main.shape={tuple(output_main.shape) if hasattr(output_main, 'shape') else type(output_main)}, "
-                    f"target.shape={tuple(target.shape) if hasattr(target, 'shape') else type(target)}"
+                    f"target_main.shape={tuple(target_main.shape) if hasattr(target_main, 'shape') else type(target_main)}"
                 )
             except Exception:
                 pass
             self._online_eval_debug_calls += 1
         # --- 调试输出结束 ---
 
-        return super().run_online_evaluation(output_main, target)
+        return super().run_online_evaluation(output_main, target_main)
