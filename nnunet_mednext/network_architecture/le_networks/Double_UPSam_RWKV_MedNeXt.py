@@ -72,9 +72,11 @@ class Double_UpSam_RWKV_MedNeXt(nn.Module):
             rwkv_base_ch=rwkv_base_ch,
         )
 
-        # 如果没有显式传入解码用 RWKV block，这里直接沿用 encoder 内部的 RWKV 结构是可能的，
-        # 但为了接口清晰，要求显式传入一个 (B, N, C) -> (B, N, C) 的 rwkv_block_dec。
-        assert rwkv_block_dec is not None, "rwkv_block_dec must be provided for Double_UpSam_RWKV_MedNeXt"
+        # 原来这里强制要求 rwkv_block_dec 非空，现改为允许为 None：
+        # 当为 None 时，CrossStageRWKVSementicUpsampling3D 会在内部回退到 SP_RWKV 的 PropagationRWKV。
+        # 这使得解码器阶段可以只使用轻量 SP-RWKV，而不依赖 RWKVSeq。
+        # if rwkv_block_dec is None:
+        #     raise AssertionError("rwkv_block_dec must be provided for Double_UpSam_RWKV_MedNeXt")
 
         if dim == "2d":
             raise NotImplementedError("Double_UpSam_RWKV_MedNeXt is currently implemented for 3D (dim='3d') only.")
