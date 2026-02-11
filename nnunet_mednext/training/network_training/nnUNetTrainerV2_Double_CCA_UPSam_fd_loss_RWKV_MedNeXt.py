@@ -72,7 +72,7 @@ class nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt(nnUNetTrainerV2_Opti
         if torch.cuda.is_available():
             self.network.cuda()
 
-        self.batch_size = 4
+        self.batch_size = 2
 
     def _compute_edge_loss_single(self, edge_logit: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
         """对单层边界 logit 计算 BCE loss。"""
@@ -88,10 +88,18 @@ class nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt(nnUNetTrainerV2_Opti
         """重载 loss 计算，加入两层边界 loss。
 
         output: (seg_outputs, edge_logit_f0, edge_logit_f1)
+
+        注意：seg_outputs 本身仍然是 nnU-Net 期望的 list/tuple 结构，
+        会直接传递给父类的 compute_loss（通常封装为 MultipleOutputLoss2），
+        以保证 deep supervision 正常工作；本方法只在此基础上额外叠加边界 loss。
         """
+        # 拆分三元组输出
         seg_outputs, edge_logit_f0, edge_logit_f1 = output
+
+        # 调用父类的 compute_loss 计算标准分割损失（含 deep supervision）
         seg_loss = super().compute_loss(seg_outputs, target)
 
+        # 额外的两层边界 BCE 损失
         edge_loss0 = self._compute_edge_loss_single(edge_logit_f0, target)
         edge_loss1 = self._compute_edge_loss_single(edge_logit_f1, target)
 
