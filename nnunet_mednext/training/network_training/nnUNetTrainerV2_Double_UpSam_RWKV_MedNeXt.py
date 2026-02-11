@@ -43,10 +43,8 @@ class nnUNetTrainerV2_Double_UpSam_RWKV_MedNeXt(nnUNetTrainerV2_Optim_and_LR):
             rwkv_block_dec=None,
         )
 
-        # 将网络移动到 trainer 配置好的 device（通常是 GPU）
-        self.network.to(self.device)
+        if torch.cuda.is_available():
+            self.network.cuda()
 
-        # 设置推理时的非线性激活
-        self.network.inference_apply_nonlin = self.inference_apply_nonlin
         # 显存友好，可以按需调整 batch_size
         self.batch_size = 1
