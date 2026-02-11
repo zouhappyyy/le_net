@@ -78,8 +78,6 @@ class nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt(nnUNetTrainerV2_Opti
 
         self.batch_size = 2
 
-        # 将原有的 deep supervision loss 包装为带边界监督的 MultipleOutputWithEdgeLoss
-        # self.loss 在父类中已经被初始化为 MultipleOutputLoss2(Dice+CE)
         base_loss = self.loss
         self.loss = MultipleOutputWithEdgeLoss(
             seg_loss=base_loss,
@@ -90,12 +88,14 @@ class nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt(nnUNetTrainerV2_Opti
     def run_online_evaluation(self, output, target):
         """适配 fd+loss 网络的在线验证接口，并输出一次性调试信息。
 
-        原版 nnUNetTrainer.run_online_evaluation 期望 output 是单个 logits tensor，
-        这里网络 forward 返回的是 (seg_outputs, edge_logit_f0, edge_logit_f1)，
-        我们只将主分支 seg_outputs[0] 作为 logits 传递给父类的实现。
+        - 只用最高分辨率主输出(seg_outputs[0])进行评估；
+        - 若 target 为 list/tuple，则取第一个元素；
+        - 不依赖 deep supervision 的其余分支，避免 batch 维度不一致。
         """
+        # 解包网络输出
         if isinstance(output, (tuple, list)) and len(output) == 3:
             seg_outputs, edge_logit_f0, edge_logit_f1 = output
+            # seg_outputs 可能是 deep supervision list，取最高分辨率主输出
             if isinstance(seg_outputs, (tuple, list)):
                 output_main = seg_outputs[0]
             else:
@@ -103,18 +103,14 @@ class nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt(nnUNetTrainerV2_Opti
         else:
             output_main = output
 
-        # nnUNet V2 中，target 在验证阶段可能是 list/tuple（例如 [target_tensor]）
-        # 父类 run_online_evaluation 期望的是单个 tensor，这里统一展开
+        # target 可能是 [target_tensor]，统一展开
         if isinstance(target, (tuple, list)):
-            if len(target) > 0:
-                target_main = target[0]
-            else:
-                target_main = target
+            target_main = target[0] if len(target) > 0 else target
         else:
             target_main = target
 
-        # --- 调试输出：仅在前几次在线评估时打印 shape 信息 ---
-        if self._online_eval_debug_calls < 5:
+        # 调试输出：观察一次性 shape
+        if self._online_eval_debug_calls < 3:
             try:
                 self.print_to_log_file(
                     f"[DEBUG] run_online_evaluation call {self._online_eval_debug_calls}: "
@@ -124,6 +120,6 @@ class nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt(nnUNetTrainerV2_Opti
             except Exception:
                 pass
             self._online_eval_debug_calls += 1
-        # --- 调试输出结束 ---
 
+        # 调用父类在线评估，仅使用主输出和对应 target
         return super().run_online_evaluation(output_main, target_main)
