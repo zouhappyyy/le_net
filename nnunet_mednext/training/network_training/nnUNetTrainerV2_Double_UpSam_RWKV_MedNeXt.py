@@ -3,9 +3,23 @@ import torch
 from nnunet_mednext.training.network_training.MedNeXt.nnUNetTrainerV2_MedNeXt import (
     nnUNetTrainerV2_Optim_and_LR,
 )
-from nnunet_mednext.network_architecture.le_networks import Double_UpSam_RWKV_MedNeXt
+from nnunet_mednext.network_architecture.le_networks import Double_UpSam_RWKV_MedNeXt as Double_UpSam_RWKV_MedNeXt
 import torch.nn as nn
+from nnunet_mednext.utilities.nd_softmax import softmax_helper
+from nnunet_mednext.network_architecture.neural_network import SegmentationNetwork
 
+
+class Double_UpSam_RWKV_MedNeXt(Double_UpSam_RWKV_MedNeXt, SegmentationNetwork):
+    """Wrap Double_UpSam_RWKV_MedNeXt to be compatible with nnUNet SegmentationNetwork API."""
+
+    def __init__(self, *args, **kwargs):
+        """Signature follows MedNeXt / MyMedNext: in_channels, n_channels, n_classes, ..."""
+        super().__init__(*args, **kwargs)
+        # nnUNet evaluation / inference interface
+        self.conv_op = nn.Conv3d
+        self.inference_apply_nonlin = softmax_helper
+        self.input_shape_must_be_divisible_by = 2 ** 5
+        self.num_classes = kwargs["n_classes"]
 
 class nnUNetTrainerV2_Double_UpSam_RWKV_MedNeXt(nnUNetTrainerV2_Optim_and_LR):
     """nnUNet Trainer using Double_UpSam_RWKV_MedNeXt as the backbone.
