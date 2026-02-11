@@ -14,6 +14,8 @@
 
 
 from torch import nn
+import torch.nn.functional as F
+from nnunet_mednext.network_architecture.le_networks.Double_CCA_UPSam_fd_loss_RWKV_MedNeXt import extract_edge_gt
 
 
 class MultipleOutputLoss2(nn.Module):
@@ -41,3 +43,46 @@ class MultipleOutputLoss2(nn.Module):
             if weights[i] != 0:
                 l += weights[i] * self.loss(x[i], y[i])
         return l
+
+
+class MultipleOutputWithEdgeLoss(nn.Module):
+    """包装 (seg_outputs, edge_logit_f0, edge_logit_f1) 的多输出 loss。
+
+    - seg_loss: 使用内部的 multiple-output loss 对 seg_outputs 与 y 做监督；
+    - edge_loss_f0/f1: 使用 BCEWithLogits 对边界 logit 与从 y 提取的 edge_gt 做监督；
+    - total_loss = seg_loss + w0 * edge_loss_f0 + w1 * edge_loss_f1。
+    """
+
+    def __init__(self, seg_loss: nn.Module, edge_weight_f0: float = 0.4, edge_weight_f1: float = 0.2):
+        super().__init__()
+        self.seg_loss = seg_loss
+        self.edge_weight_f0 = edge_weight_f0
+        self.edge_weight_f1 = edge_weight_f1
+
+    def _compute_edge_loss_single(self, edge_logit, target):
+        # target: [B,D,H,W] or [B,1,D,H,W] or [B,C,D,H,W]
+        if target.dim() == 4:
+            target = target.unsqueeze(1)
+        elif target.dim() == 5 and target.size(1) != 1:
+            # 多通道 / one-hot，交给 extract_edge_gt 内部处理
+            pass
+        edge_gt = extract_edge_gt(target)
+        return F.binary_cross_entropy_with_logits(edge_logit, edge_gt)
+
+    def forward(self, x, y):
+        """x: (seg_outputs, edge_logit_f0, edge_logit_f1), y: list/tuple of targets"""
+        assert isinstance(x, (tuple, list)), "x must be tuple/list of (seg_outputs, edge_f0, edge_f1)"
+        assert len(x) == 3, "expected (seg_outputs, edge_logit_f0, edge_logit_f1)"
+
+        seg_outputs, edge_logit_f0, edge_logit_f1 = x
+
+        # seg_outputs 与 y 一起交给原来的 multiple-output loss
+        seg_loss = self.seg_loss(seg_outputs, y)
+
+        # y[0] 是最高分辨率 target，与 edge 分支共享
+        target_main = y[0]
+        edge_loss0 = self._compute_edge_loss_single(edge_logit_f0, target_main)
+        edge_loss1 = self._compute_edge_loss_single(edge_logit_f1, target_main)
+
+        return seg_loss + self.edge_weight_f0 * edge_loss0 + self.edge_weight_f1 * edge_loss1
+
