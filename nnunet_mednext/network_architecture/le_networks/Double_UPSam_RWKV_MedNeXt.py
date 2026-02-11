@@ -221,12 +221,16 @@ class Double_UpSam_RWKV_MedNeXt(nn.Module):
         bottleneck = f4  # 16C
 
         # 初始化 DS 变量，避免未赋值警告
-        x_ds_1 = x_ds_2 = x_ds_3 = None
+        x_ds_1 = x_ds_2 = x_ds_3 = x_ds_4 = None
 
         # 从 bottleneck 中提取全局语义向量，供所有解码 stage 共享
         global_state = self._global_pool(bottleneck)  # (B, 16C) 但 CrossStageRSU3D 期望 (B, in_channels)
         # 对于不同 stage，我们只需保证传入的 global_state 在通道数上与对应 RSU 的 in_channels 一致。
         # 简化方案：使用 1x1x1 Conv 将 bottleneck 投影到各层需要的通道数，这里使用池化 + 线性层可以灵活实现。
+
+        # 如果启用 deep supervision，可以在 bottleneck 上直接生成最深层的 DS 输出
+        if self.do_ds and self.out_4 is not None:
+            x_ds_4 = self.out_4(bottleneck)
 
         # decoder 3: 16C -> 8C，RSU + skip f3
         gs_3 = self._global_pool(bottleneck)  # (B,16C)
@@ -234,7 +238,7 @@ class Double_UpSam_RWKV_MedNeXt(nn.Module):
         x_up_3 = self.rsu_3_proj(x_up_3)       # (B,8C,...), 与 f3 对齐
         dec_x = f3 + x_up_3
         x = self.dec_block_3(dec_x)
-        if self.do_ds:
+        if self.do_ds and self.out_3 is not None:
             x_ds_3 = self.out_3(x)
 
         # decoder 2: 8C -> 4C，RSU + skip f2
@@ -243,14 +247,14 @@ class Double_UpSam_RWKV_MedNeXt(nn.Module):
         x_up_2 = self.rsu_2_proj(x_up_2)       # (B,4C,...), 与 f2 对齐
         dec_x = f2 + x_up_2
         x = self.dec_block_2(dec_x)
-        if self.do_ds:
+        if self.do_ds and self.out_2 is not None:
             x_ds_2 = self.out_2(x)
 
         # decoder 1: 4C -> 2C，MedNeXtUpBlock + skip f1
         x_up_1 = self.up_1(x)
         dec_x = f1 + x_up_1
         x = self.dec_block_1(dec_x)
-        if self.do_ds:
+        if self.do_ds and self.out_1 is not None:
             x_ds_1 = self.out_1(x)
 
         # decoder 0: 2C -> C，MedNeXtUpBlock + skip f0
@@ -261,6 +265,7 @@ class Double_UpSam_RWKV_MedNeXt(nn.Module):
         x = self.out_0(x)
 
         if self.do_ds:
-            return [x, x_ds_1, x_ds_2, x_ds_3, None]
+            # 返回所有 DS 输出：主输出 + 4 个辅助输出（最深到较浅）
+            return [x, x_ds_1, x_ds_2, x_ds_3, x_ds_4]
         else:
             return x
