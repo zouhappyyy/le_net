@@ -60,13 +60,19 @@ class MultipleOutputWithEdgeLoss(nn.Module):
         self.edge_weight_f1 = edge_weight_f1
 
     def _compute_edge_loss_single(self, edge_logit, target):
+        """对单层边界 logit 计算 BCE loss，并在必要时下采样 GT 以匹配边界分支的空间尺寸。"""
         # target: [B,D,H,W] or [B,1,D,H,W] or [B,C,D,H,W]
         if target.dim() == 4:
             target = target.unsqueeze(1)
         elif target.dim() == 5 and target.size(1) != 1:
             # 多通道 / one-hot，交给 extract_edge_gt 内部处理
             pass
-        edge_gt = extract_edge_gt(target)
+        edge_gt = extract_edge_gt(target)  # [B,1,D,H,W]
+
+        # 若边界 GT 与 edge_logit 空间尺寸不一致，则下采样/上采样到 edge_logit 尺寸
+        if edge_gt.shape[2:] != edge_logit.shape[2:]:
+            edge_gt = F.interpolate(edge_gt, size=edge_logit.shape[2:], mode='nearest')
+
         return F.binary_cross_entropy_with_logits(edge_logit, edge_gt)
 
     def forward(self, x, y):
