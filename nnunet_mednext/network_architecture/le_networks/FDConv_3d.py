@@ -310,7 +310,7 @@ class FrequencyBandModulation3D(nn.Module):
             return 1 + torch.tanh(x)
         raise NotImplementedError
 
-    def forward(self, x, att_feat=None):
+    def forward(self, x, att_feat=None, return_high: bool = False):
         att_feat = att_feat if att_feat is not None else x
         x_list = []
         x = x.to(torch.float32)
@@ -320,24 +320,29 @@ class FrequencyBandModulation3D(nn.Module):
 
         # 1. 特征转换至频域 3D rfftn -> 频域
         x_fft = torch.fft.rfftn(x, s=(d, h, w), dim=(-3, -2, -1), norm='ortho')
-        # 2. 加载预计算掩码并调整尺寸（适配当前特征大小） 调整 cached masks 到当前频域尺寸
+        # 2. 加载预计算掩码并调整尺寸
         current_masks = F.interpolate(self.cached_masks.float(), size=(freq_d, freq_h, freq_w), mode='nearest')
+
+        # 累计所有高频残差，用于需要时输出 high_acc
+        high_acc = torch.zeros_like(x)
+
         # 3. 按频段分割并增强（高频段）
         for idx, k in enumerate(self.k_list):
             mask = current_masks[idx]  # [1, D, H, W_out]
-            # 频域分割并回到时域
-            # 频域分割：低频部分（掩码内）和高频部分（掩码外）
+            # 低频 / 高频 分割
             low_part = torch.fft.irfftn(x_fft * mask, s=(d, h, w), dim=(-3, -2, -1), norm='ortho')
             high_part = pre_x - low_part
-            pre_x = low_part  # 更新低频累积值，用于下一次分割
-            # 生成频段注意力并加权
+            pre_x = low_part  # 更新低频累积
+            high_acc = high_acc + high_part
+
+            # 生成频带注意力并加权高频部分
             freq_weight = self.freq_weight_conv_list[idx](att_feat)
             freq_weight = self._activate(freq_weight)
-            # 分组加权：适配分组卷积的通道划分
             tmp = freq_weight.reshape(b, self.spatial_group, -1, d, h, w) * \
                   high_part.reshape(b, self.spatial_group, -1, d, h, w)
             x_list.append(tmp.reshape(b, -1, d, h, w))
-        # 4. 增强低频段（可选）
+
+        # 4. 低频段
         if self.lowfreq_att:
             freq_weight = self.freq_weight_conv_list[len(self.k_list)](att_feat)
             freq_weight = self._activate(freq_weight)
@@ -345,10 +350,12 @@ class FrequencyBandModulation3D(nn.Module):
                   pre_x.reshape(b, self.spatial_group, -1, d, h, w)
             x_list.append(tmp.reshape(b, -1, d, h, w))
         else:
-            x_list.append(pre_x)  # 直接加入低频段，不增强
-        # 5. 融合所有频段特征
-        return sum(x_list)
+            x_list.append(pre_x)
 
+        out = sum(x_list)
+        if return_high:
+            return out, high_acc
+        return out
 
 
 class FDConv(nn.Conv3d):
@@ -462,6 +469,8 @@ class FDConv(nn.Conv3d):
         # 频带调制（可选）
         if self.kernel_size[0] in use_fbm_if_k_in or (use_fbm_for_stride and self.stride[0] > 1):
             self.FBM = FrequencyBandModulation3D(self.in_channels, **fbm_cfg)
+            # 为上层暴露最近一次 FBM 的高频残差
+            self.last_high_feat = None
 
         # 局部 KSM（可选）
         if self.use_ksm_local:
@@ -587,8 +596,11 @@ class FDConv(nn.Conv3d):
         ).reshape(batch_size, 1, self.out_channels, kT, self.in_channels, kH, kW)
         adaptive_weights = adaptive_weights.permute(0, 1, 2, 4, 3, 5, 6)
 
+        # 记录 FBM 高频残差
         if hasattr(self, 'FBM'):
-            x = self.FBM(x)
+            fbm_out, high_acc = self.FBM(x, return_high=True)
+            self.last_high_feat = high_acc
+            x = fbm_out
 
         if self.out_channels * self.in_channels * kT * kH * kW < (
             in_planes + self.out_channels
