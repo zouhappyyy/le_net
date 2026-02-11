@@ -45,6 +45,8 @@ class nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt(nnUNetTrainerV2_Opti
     def __init__(self, *args, edge_loss_weight_f0: float = 0.4, edge_loss_weight_f1: float = 0.2, **kwargs):
         self.edge_loss_weight_f0 = edge_loss_weight_f0
         self.edge_loss_weight_f1 = edge_loss_weight_f1
+        # 调试计数器，仅用于在线评估时输出 shape 信息
+        self._online_eval_debug_calls = 0
         super().__init__(*args, **kwargs)
 
     def initialize_network(self):
@@ -86,7 +88,7 @@ class nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt(nnUNetTrainerV2_Opti
         )
 
     def run_online_evaluation(self, output, target):
-        """适配 fd+loss 网络的在线验证接口。
+        """适配 fd+loss 网络的在线验证接口，并输出一次性调试信息。
 
         原版 nnUNetTrainer.run_online_evaluation 期望 output 是单个 logits tensor，
         这里网络 forward 返回的是 (seg_outputs, edge_logit_f0, edge_logit_f1)，
@@ -94,13 +96,24 @@ class nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt(nnUNetTrainerV2_Opti
         """
         if isinstance(output, (tuple, list)) and len(output) == 3:
             seg_outputs, edge_logit_f0, edge_logit_f1 = output
-            # seg_outputs 本身是 deep supervision 的 list，取最高分辨率的主输出用于评估
             if isinstance(seg_outputs, (tuple, list)):
                 output_main = seg_outputs[0]
             else:
                 output_main = seg_outputs
         else:
-            # 回退：保持与父类兼容
             output_main = output
+
+        # --- 调试输出：仅在前几次在线评估时打印 shape 信息 ---
+        if self._online_eval_debug_calls < 5:
+            try:
+                self.print_to_log_file(
+                    f"[DEBUG] run_online_evaluation call {self._online_eval_debug_calls}: "
+                    f"output_main.shape={tuple(output_main.shape) if hasattr(output_main, 'shape') else type(output_main)}, "
+                    f"target.shape={tuple(target.shape) if hasattr(target, 'shape') else type(target)}"
+                )
+            except Exception:
+                pass
+            self._online_eval_debug_calls += 1
+        # --- 调试输出结束 ---
 
         return super().run_online_evaluation(output_main, target)
