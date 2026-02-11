@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from .SP_RWKV import SemanticConditioning, PropagationRWKV
+
 
 class ConditionedRWKV3D(nn.Module):
     """\
@@ -42,16 +44,9 @@ class CrossStageRWKVSementicUpsampling3D(nn.Module):
     """\
     3D RSU with Cross-Stage RWKV Conditioning, for MedNeXt3D decoder upsampling.
 
-    设计目标:
-      - 输入/输出特征为 (B, C, D, H, W);
-      - 使用 3D 插值对体素空间 (D, H, W) 做语义中性上采样;
-      - 将上采样特征展平为序列 (B, N, C), 调用跨 stage 条件化 RWKV 进行全局建模;
-      - 从 RWKV 上下文中预测体素级 gamma/beta, 对上采样结果做语义调制。
-
-    参数:
-      in_channels: 解码层特征通道数 C;
-      scale_factor: 体素空间的上采样倍率 (int 或 tuple of 3);
-      rwkv_block: 接收 (B, N, C) -> (B, N, C) 的 RWKV 模块实例。
+    This implementation now reuses the generic semantic conditioning + RWKV
+    propagation logic from SP_RWKV (SemanticConditioning + PropagationRWKV),
+    keeping the public API identical while centralizing the behaviour.
     """
 
     def __init__(
@@ -69,30 +64,34 @@ class CrossStageRWKVSementicUpsampling3D(nn.Module):
         self.mode = mode
         self.align_corners = align_corners
 
-        # 条件化 RWKV (3D 语义, 但接口仍是 (B,N,C))
-        self.cond_rwkv = ConditionedRWKV3D(
-            dim=in_channels,
-            rwkv_block=rwkv_block,
-        )
+        # Reuse SP_RWKV's conditioning and lightweight RWKV-style propagation.
+        # We still accept an external rwkv_block for backward compatibility;
+        # if provided, it wraps PropagationRWKV, otherwise we use PropagationRWKV
+        # directly.
+        self.semantic_condition = SemanticConditioning(in_channels)
 
-        # 从 RWKV 上下文预测体素级调制参数
+        # Prefer external rwkv_block if it matches (B,N,C)->(B,N,C), else fallback.
+        self.use_external_rwkv = rwkv_block is not None
+        if self.use_external_rwkv:
+            self.rwkv = rwkv_block
+        else:
+            self.rwkv = PropagationRWKV(in_channels)
+
         self.gamma_proj = nn.Linear(in_channels, in_channels)
         self.beta_proj = nn.Linear(in_channels, in_channels)
-
-        # 对序列通道维归一化
         self.norm = nn.LayerNorm(in_channels)
 
     def forward(self, x: torch.Tensor, global_state: torch.Tensor) -> torch.Tensor:
         """\
-        x: (B, C, D, H, W) -- decoder feature map before upsampling
-        global_state: (B, C) -- encoder global semantic state (3D-pooled)
-        return: (B, C, D', H', W') -- upsampled and RWKV-guided feature map
+        x: (B, C, D, H, W), global_state: (B, C) -> (B, C, D', H', W')
         """
         assert x.dim() == 5, f"Expected 5D input (B,C,D,H,W), got {x.shape}"
         B, C, D, H, W = x.shape
-        assert global_state.shape == (B, C), f"global_state shape {global_state.shape} incompatible with x {x.shape}"
+        assert global_state.shape == (B, C), (
+            f"global_state shape {global_state.shape} incompatible with x {x.shape}"
+        )
 
-        # 1. semantic-neutral 3D upsampling
+        # 1. 3D upsampling (semantic-neutral)
         x_up = F.interpolate(
             x,
             scale_factor=self.scale_factor,
@@ -102,21 +101,22 @@ class CrossStageRWKVSementicUpsampling3D(nn.Module):
 
         Dp, Hp, Wp = x_up.shape[2], x_up.shape[3], x_up.shape[4]
 
-        # 2. flatten to tokens (B, N, C), N = D'*H'*W'
+        # 2. flatten to tokens and apply global semantic conditioning
         tokens = x_up.view(B, C, -1).transpose(1, 2)  # (B, N, C)
+        tokens = self.semantic_condition(tokens, global_state)
         tokens = self.norm(tokens)
 
-        # 3. cross-stage conditioned RWKV in 3D context
-        context = self.cond_rwkv(tokens, global_state)  # (B, N, C)
+        # 3. RWKV-style propagation (either external rwkv_block or local PropagationRWKV)
+        context = self.rwkv(tokens)  # (B, N, C)
 
         # 4. semantic modulation parameters from RWKV context
         gamma = self.gamma_proj(context)  # (B, N, C)
-        beta = self.beta_proj(context)    # (B, N, C)
+        beta = self.beta_proj(context)   # (B, N, C)
 
         # 5. reshape back to 3D volumes
         gamma = gamma.transpose(1, 2).view(B, C, Dp, Hp, Wp)
         beta = beta.transpose(1, 2).view(B, C, Dp, Hp, Wp)
 
-        # 6. RWKV-guided semantic modulation of upsampled feature
+        # 6. semantic FiLM modulation of upsampled feature
         out = x_up * (1.0 + torch.tanh(gamma)) + beta
         return out
