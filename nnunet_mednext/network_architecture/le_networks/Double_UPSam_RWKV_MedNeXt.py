@@ -98,6 +98,8 @@ class Double_UpSam_RWKV_MedNeXt(nn.Module):
             mode="trilinear",
             align_corners=False,
         )
+        # 将 RSU 输出的 16C 通道映射到与 f3 对齐的 8C
+        self.rsu_3_proj = nn.Conv3d(16 * C, 8 * C, kernel_size=1)
         self.dec_block_3 = nn.Sequential(
             *[
                 MedNeXtBlock(
@@ -122,6 +124,8 @@ class Double_UpSam_RWKV_MedNeXt(nn.Module):
             mode="trilinear",
             align_corners=False,
         )
+        # 将 RSU 输出的 8C 通道映射到与 f2 对齐的 4C
+        self.rsu_2_proj = nn.Conv3d(8 * C, 4 * C, kernel_size=1)
         self.dec_block_2 = nn.Sequential(
             *[
                 MedNeXtBlock(
@@ -226,7 +230,8 @@ class Double_UpSam_RWKV_MedNeXt(nn.Module):
 
         # decoder 3: 16C -> 8C，RSU + skip f3
         gs_3 = self._global_pool(bottleneck)  # (B,16C)
-        x_up_3 = self.rsu_3(bottleneck, gs_3)
+        x_up_3 = self.rsu_3(bottleneck, gs_3)  # (B,16C,...)
+        x_up_3 = self.rsu_3_proj(x_up_3)       # (B,8C,...), 与 f3 对齐
         dec_x = f3 + x_up_3
         x = self.dec_block_3(dec_x)
         if self.do_ds:
@@ -234,7 +239,8 @@ class Double_UpSam_RWKV_MedNeXt(nn.Module):
 
         # decoder 2: 8C -> 4C，RSU + skip f2
         gs_2 = self._global_pool(x)  # x 通道为 8C
-        x_up_2 = self.rsu_2(x, gs_2)
+        x_up_2 = self.rsu_2(x, gs_2)  # (B,8C,...)
+        x_up_2 = self.rsu_2_proj(x_up_2)       # (B,4C,...), 与 f2 对齐
         dec_x = f2 + x_up_2
         x = self.dec_block_2(dec_x)
         if self.do_ds:
