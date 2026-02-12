@@ -86,40 +86,56 @@ class nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt(nnUNetTrainerV2_Opti
         )
 
     def run_online_evaluation(self, output, target):
-        """适配 fd+loss 网络的在线验证接口，并输出一次性调试信息。
+        """自定义在线评估：仅使用最高分辨率分割输出与对应 target 计算简化 Dice。
 
-        - 只用最高分辨率主输出(seg_outputs[0])进行评估；
-        - 若 target 为 list/tuple，则取第一个元素；
-        - 不依赖 deep supervision 的其余分支，避免 batch 维度不一致。
+        这样可以完全绕过父类 run_online_evaluation 中对输出结构和 batch 维的假设，
+        同时保留在线 Dice 指标的统计功能。
         """
-        # 解包网络输出
+        # 解包网络输出：(seg_outputs, edge_logit_f0, edge_logit_f1)
         if isinstance(output, (tuple, list)) and len(output) == 3:
             seg_outputs, edge_logit_f0, edge_logit_f1 = output
-            # seg_outputs 可能是 deep supervision list，取最高分辨率主输出
             if isinstance(seg_outputs, (tuple, list)):
-                output_main = seg_outputs[0]
+                logits = seg_outputs[0]
             else:
-                output_main = seg_outputs
+                logits = seg_outputs
         else:
-            output_main = output
+            logits = output
 
         # target 可能是 [target_tensor]，统一展开
         if isinstance(target, (tuple, list)):
-            target_main = target[0] if len(target) > 0 else target
-        else:
-            target_main = target
+            target = target[0] if len(target) > 0 else target
 
-        # 调试输出：观察一次性 shape
-        if self._online_eval_debug_calls < 3:
-            try:
-                self.print_to_log_file(
-                    f"[DEBUG] run_online_evaluation call {self._online_eval_debug_calls}: "
-                    f"output_main.shape={tuple(output_main.shape) if hasattr(output_main, 'shape') else type(output_main)}, "
-                    f"target_main.shape={tuple(target_main.shape) if hasattr(target_main, 'shape') else type(target_main)}"
-                )
-            except Exception:
-                pass
-            self._online_eval_debug_calls += 1
+        with torch.no_grad():
+            # logits: [B, C, D, H, W]
+            num_classes = logits.shape[1]
+            output_softmax = softmax_helper(logits)
+            output_seg = output_softmax.argmax(1)        # [B, D, H, W]
 
-        # 调用父类在线评估，仅使用主输出和对应 target
-        return super().run_online_evaluation(output_main, target_main)
+            # target: [B, 1, D, H, W] -> [B, D, H, W]
+            if target.dim() == 5 and target.shape[1] == 1:
+                target_lbl = target[:, 0].long()
+            else:
+                target_lbl = target.long()
+
+            # 初始化累计容器（按 batch 汇总到 per-class tp/fp/fn）
+            tp_hard = torch.zeros((num_classes - 1,), device=logits.device)
+            fp_hard = torch.zeros_like(tp_hard)
+            fn_hard = torch.zeros_like(tp_hard)
+
+            for c in range(1, num_classes):
+                pred_c = (output_seg == c)
+                targ_c = (target_lbl == c)
+                tp_hard[c - 1] = (pred_c & targ_c).sum().float()
+                fp_hard[c - 1] = (pred_c & ~targ_c).sum().float()
+                fn_hard[c - 1] = (~pred_c & targ_c).sum().float()
+
+            # 父类 finish_online_evaluation 期望的是列表形式，这里保持相同风格
+            if not hasattr(self, 'online_eval_tp'):
+                self.online_eval_tp = []
+                self.online_eval_fp = []
+                self.online_eval_fn = []
+                self.online_eval_foreground_dc = []
+
+            self.online_eval_tp.append(list(tp_hard.detach().cpu().numpy()))
+            self.online_eval_fp.append(list(fp_hard.detach().cpu().numpy()))
+            self.online_eval_fn.append(list(fn_hard.detach().cpu().numpy()))
