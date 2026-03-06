@@ -220,6 +220,73 @@ class nnUNetTrainerV2(nnUNetTrainer):
         self.network.do_ds = ds
         return ret
 
+    def _log_target_stats(self, target, header: str):
+        """Safely log unique label values for deep-supervision targets.
+
+        Handles both Tensor and list/tuple[Tensor] without raising type errors.
+        """
+        import torch as _torch  # local import to avoid polluting module namespace
+
+        if isinstance(target, (list, tuple)):
+            for i, t in enumerate(target):
+                try:
+                    uniq = _torch.unique(t)
+                    self.print_to_log_file(
+                        f"{header} target[{i}] unique={uniq}",
+                        also_print_to_console=True,
+                    )
+                except Exception as e:  # noqa: BLE001
+                    self.print_to_log_file(
+                        f"{header} target[{i}] unique error: {e}",
+                        also_print_to_console=True,
+                    )
+        else:
+            try:
+                uniq = _torch.unique(target)
+                self.print_to_log_file(
+                    f"{header} target unique={uniq}",
+                    also_print_to_console=True,
+                )
+            except Exception as e:  # noqa: BLE001
+                self.print_to_log_file(
+                    f"{header} target unique error: {e}",
+                    also_print_to_console=True,
+                )
+
+    def _log_output_stats(self, output, header: str):
+        """Safely log basic statistics (shape/min/max) for network outputs.
+
+        Handles both Tensor and list/tuple[Tensor].
+        """
+        import torch as _torch  # local import to avoid polluting module namespace
+
+        def _stats(t: _torch.Tensor) -> str:
+            return f"shape={tuple(t.shape)}, min={float(t.min())}, max={float(t.max())}"
+
+        if isinstance(output, (list, tuple)):
+            for i, o in enumerate(output):
+                try:
+                    self.print_to_log_file(
+                        f"{header} output[{i}] {_stats(o)}",
+                        also_print_to_console=True,
+                    )
+                except Exception as e:  # noqa: BLE001
+                    self.print_to_log_file(
+                        f"{header} output[{i}] stats error: {e}",
+                        also_print_to_console=True,
+                    )
+        else:
+            try:
+                self.print_to_log_file(
+                    f"{header} output {_stats(output)}",
+                    also_print_to_console=True,
+                )
+            except Exception as e:  # noqa: BLE001
+                self.print_to_log_file(
+                    f"{header} output stats error: {e}",
+                    also_print_to_console=True,
+                )
+
     def run_iteration(self, data_generator, do_backprop=True, run_online_evaluation=False):
         """
         gradient clipping improves training stability
@@ -254,11 +321,8 @@ class nnUNetTrainerV2(nnUNetTrainer):
                     f"[NaN DETECTED][fp16] epoch={self.epoch} loss={l}",
                     also_print_to_console=True,
                 )
-                self.print_to_log_file(
-                    f"  target unique={torch.unique(target)}",
-                    also_print_to_console=True,
-                )
-                # raise to abort training early; user can catch this in the safe wrapper
+                self._log_target_stats(target, "[NaN DETECTED][fp16]")
+                self._log_output_stats(output, "[NaN DETECTED][fp16]")
                 raise RuntimeError("Loss became NaN/Inf in fp16 run_iteration")
 
             if do_backprop:
@@ -278,10 +342,8 @@ class nnUNetTrainerV2(nnUNetTrainer):
                     f"[NaN DETECTED][fp32] epoch={self.epoch} loss={l}",
                     also_print_to_console=True,
                 )
-                self.print_to_log_file(
-                    f"  target unique={torch.unique(target)}",
-                    also_print_to_console=True,
-                )
+                self._log_target_stats(target, "[NaN DETECTED][fp32]")
+                self._log_output_stats(output, "[NaN DETECTED][fp32]")
                 raise RuntimeError("Loss became NaN/Inf in fp32 run_iteration")
 
             if do_backprop:
