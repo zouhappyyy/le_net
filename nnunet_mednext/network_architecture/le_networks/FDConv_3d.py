@@ -111,14 +111,17 @@ class KernelSpatialModulation_Global3D(nn.Module):
         return self._activate(x, self.temperature)
 
     def get_filter_attention(self, x):
+        # x: [B, Catt, 1,1,1] -> reshape -> [B,1,Cout,1,1,1,1]
         x = self.filter_fc(x).view(x.size(0), 1, -1, 1, 1, 1, 1)
         return self._activate(x, self.temperature)
 
     def get_spatial_attention(self, x):
+        # x: [B, Catt, 1,1,1] -> reshape -> [B,1,1,1,k^3] -> reshape -> [B,1,1,1,k,k,k]
         x = self.spatial_fc(x).view(x.size(0), 1, 1, 1, self.kernel_size, self.kernel_size, self.kernel_size)
         return self._activate(x, self.temperature)
 
     def get_kernel_attention(self, x):
+        # x: [B, Catt, 1,1,1] -> reshape -> [B,K,1,1,1,1,1]
         x = self.kernel_fc(x).view(x.size(0), -1, 1, 1, 1, 1, 1)
         if self.act_type == 'softmax':
             return F.softmax(x / self.kernel_temp, dim=1)
@@ -591,7 +594,7 @@ class FDConv(nn.Conv3d):
                     [w[..., 0] * kernel_attention[:, i], w[..., 1] * kernel_attention[:, i]], dim=-1
                 )
 
-        adaptive_weights = torch.fft.irfft2(
+        adaptive_weights = torch.fft.irfft2(  #频域-》空域
             torch.view_as_complex(DFT_map), dim=(1, 2)
         ).reshape(batch_size, 1, self.out_channels, kT, self.in_channels, kH, kW)
         adaptive_weights = adaptive_weights.permute(0, 1, 2, 4, 3, 5, 6)

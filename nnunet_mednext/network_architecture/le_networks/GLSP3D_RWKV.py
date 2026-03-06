@@ -204,19 +204,6 @@ class GLSP3D(nn.Module):
         )
         self.ln = nn.LayerNorm(dim_mid)
 
-        # ---- Depthwise Conv3D ----
-        self.dwconv = nn.Conv3d(
-            dim_mid,
-            dim_mid,
-            kernel_size=dw_ks,
-            stride=stride,
-            padding=dw_ks // 2,
-            groups=dim_mid,
-            bias=False
-        )
-        self.norm2 = nn.BatchNorm3d(dim_mid)
-        self.act = nn.SiLU(inplace=True)
-
         # ---- SE ----
         self.se = SE3D(dim_mid, se_ratio) if se_ratio > 0 else nn.Identity()
 
@@ -237,11 +224,7 @@ class GLSP3D(nn.Module):
         seq = seq + self.drop_path(self.ln(self.attn(seq, (D, H, W))))
         x = seq.transpose(1, 2).reshape(B, C, D, H, W)
 
-        x = self.dwconv(x)
-        x = self.norm2(x)
-        x = self.act(x)
         x = self.se(x)
-
         x = self.proj(x)
         x = self.drop(x)
 
