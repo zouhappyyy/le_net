@@ -29,6 +29,8 @@ class nnUNetTrainerV2_Double_UpSam_RWKV_MedNeXt(nnUNetTrainerV2_Optim_and_LR):
     """
 
     def __init__(self, *args, **kwargs):
+        # 对该 RWKV 变体强制关闭混合精度，使用 fp32 训练以避免在 fp16 下数值溢出为 NaN
+        kwargs["fp16"] = False
         super().__init__(*args, **kwargs)
 
     def initialize_network(self):
