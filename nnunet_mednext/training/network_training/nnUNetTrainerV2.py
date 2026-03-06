@@ -248,6 +248,19 @@ class nnUNetTrainerV2(nnUNetTrainer):
                 del data
                 l = self.loss(output, target)
 
+            # NaN/Inf guard for mixed precision
+            if not torch.isfinite(l):
+                self.print_to_log_file(
+                    f"[NaN DETECTED][fp16] epoch={self.epoch} loss={l}",
+                    also_print_to_console=True,
+                )
+                self.print_to_log_file(
+                    f"  target unique={torch.unique(target)}",
+                    also_print_to_console=True,
+                )
+                # raise to abort training early; user can catch this in the safe wrapper
+                raise RuntimeError("Loss became NaN/Inf in fp16 run_iteration")
+
             if do_backprop:
                 self.amp_grad_scaler.scale(l).backward()
                 self.amp_grad_scaler.unscale_(self.optimizer)
@@ -258,6 +271,18 @@ class nnUNetTrainerV2(nnUNetTrainer):
             output = self.network(data)
             del data
             l = self.loss(output, target)
+
+            # NaN/Inf guard for full precision
+            if not torch.isfinite(l):
+                self.print_to_log_file(
+                    f"[NaN DETECTED][fp32] epoch={self.epoch} loss={l}",
+                    also_print_to_console=True,
+                )
+                self.print_to_log_file(
+                    f"  target unique={torch.unique(target)}",
+                    also_print_to_console=True,
+                )
+                raise RuntimeError("Loss became NaN/Inf in fp32 run_iteration")
 
             if do_backprop:
                 l.backward()
