@@ -32,6 +32,7 @@ class nnUNetTrainerV2_Double_RWKV_MedNeXt(nnUNetTrainerV2_Optim_and_LR):
     """
 
     def __init__(self, *args, **kwargs):
+        kwargs["fp16"] = False
         super().__init__(*args, **kwargs)
         # unify max epochs as in your other custom trainers
         self.max_epochs = 300

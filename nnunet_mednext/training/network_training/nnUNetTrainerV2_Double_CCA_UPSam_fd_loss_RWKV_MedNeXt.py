@@ -43,11 +43,15 @@ class nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt(nnUNetTrainerV2_Opti
     """
 
     def __init__(self, *args, edge_loss_weight_f0: float = 0.4, edge_loss_weight_f1: float = 0.2, **kwargs):
+        kwargs["fp16"] = False
         self.edge_loss_weight_f0 = edge_loss_weight_f0
         self.edge_loss_weight_f1 = edge_loss_weight_f1
         # 调试计数器，仅用于在线评估时输出 shape 信息
         self._online_eval_debug_calls = 0
         super().__init__(*args, **kwargs)
+        self.max_epochs = 300
+        if hasattr(self, "max_num_epochs"):
+            self.max_num_epochs = 300
 
     def initialize_network(self):
         use_amp = getattr(self, "use_amp", False)
@@ -76,7 +80,7 @@ class nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt(nnUNetTrainerV2_Opti
         if torch.cuda.is_available():
             self.network.cuda()
 
-        self.batch_size = 2
+        self.batch_size = 4
 
         base_loss = self.loss
         self.loss = MultipleOutputWithEdgeLoss(

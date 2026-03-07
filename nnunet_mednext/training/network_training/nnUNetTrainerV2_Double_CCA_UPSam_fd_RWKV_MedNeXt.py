@@ -36,7 +36,12 @@ class nnUNetTrainerV2_Double_CCA_UPSam_fd_RWKV_MedNeXt(nnUNetTrainerV2_Optim_and
     """nnUNet Trainer using Double_CCA_UPSam_fd_RWKV_MedNeXt as the backbone."""
 
     def __init__(self, *args, **kwargs):
+        kwargs["fp16"] = False
         super().__init__(*args, **kwargs)
+        # unify max epochs as in your other custom trainers
+        self.max_epochs = 300
+        if hasattr(self, "max_num_epochs"):
+            self.max_num_epochs = 300
 
     def initialize_network(self):
         # Some parent trainers may define use_amp; be defensive
