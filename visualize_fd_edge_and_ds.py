@@ -86,6 +86,9 @@ def _extract_case_data(data_root: str, case_id: str, dataset_directory: str) -> 
     else:
         raise RuntimeError(f"Unexpected array shape {arr.shape} in {npy_candidates[0]}, expected (C,D,H,W) or (D,H,W)")
 
+    # 当前 Task530 模型以单通道训练，这里仅保留第一个通道，避免 conv3d 输入通道数不匹配
+    data = data[:1]
+
     # 2) 从 gt_segmentations 中读取 NIfTI 标签
     import nibabel as nib
 
