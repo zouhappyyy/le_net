@@ -19,10 +19,22 @@ def get_trainer(plans_file: str, fold: int) -> nnUNetTrainerV2_Double_CCA_UPSam_
     This matches your custom Task530 plans (e.g. nnUNetPlansv2.1_trgSp_1x1x1_rwkv_plans_3D.pkl)
     without relying on get_default_configuration.
     """
+    # Derive a reasonable output folder from the plans_file location so that
+    # nnUNetTrainer.update_fold has a valid string to work with.
+    plans_dir = os.path.dirname(plans_file)
+    # e.g. .../nnUNet_preprocessed/Task530_... -> put outputs under same Task folder
+    task_dir = os.path.dirname(plans_dir)
+    output_folder = os.path.join(
+        task_dir,
+        "visualize_fd_edge_and_ds",
+        f"fold_{fold}",
+    )
+    os.makedirs(output_folder, exist_ok=True)
+
     trainer = nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt(
         plans_file,
         fold,
-        output_folder=None,
+        output_folder=output_folder,
         dataset_directory=None,
         batch_dice=True,
         stage=0,
