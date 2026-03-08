@@ -26,8 +26,8 @@ nohup mednextv1_train 3d_fullres nnUNetTrainerV2_Double_RWKV_MedNeXt 530 1 -p nn
 
 nohup mednextv1_train 3d_fullres nnUNetTrainerV2_Double_UpSam_RWKV_MedNeXt 505 0 -p nnUNetPlansv2.1_trgSp_1x1x1_rwkv > ./log/le_db_up_rwkv_task505_fold0_train.log 2>&1 &
 nohup mednextv1_train 3d_fullres nnUNetTrainerV2_Double_CCA_UPSam_RWKV_MedNeXt 505 0 -p nnUNetPlansv2.1_trgSp_1x1x1_rwkv > ./log/le_db_cca_up_rwkv_task505_fold0_train.log 2>&1 &
-nohup mednextv1_train 3d_fullres nnUNetTrainerV2_Double_CCA_UPSam_fd_RWKV_MedNeXt 505 0 -p nnUNetPlansv2.1_trgSp_1x1x1_rwkv > ./log/le_db_cca_up_fd_rwkv_task505_fold0_train.log 2>&1 &
-nohup mednextv1_train 3d_fullres nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt 505 0 -p nnUNetPlansv2.1_trgSp_1x1x1_rwkv > ./log/le_db_cca_up_fd_loss_rwkv_task505_fold0_train.log 2>&1 &
+nohup mednextv1_train 3d_fullres nnUNetTrainerV2_Double_CCA_UPSam_fd_RWKV_MedNeXt 530 1 -p nnUNetPlansv2.1_trgSp_1x1x1_rwkv > ./log/le/rwkv_cca_up_fd_task530_fold1_train.log 2>&1 &
+nohup mednextv1_train 3d_fullres nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt 530 1 -p nnUNetPlansv2.1_trgSp_1x1x1_rwkv > ./log/le/rwkv_db_cca_up_fd_loss_task530_fold1_train.log 2>&1 &
 nohup mednextv1_train 3d_fullres nnUNetTrainerV2_Double_RWKV_MedNeXt 530 0 -p nnUNetPlansv2.1_trgSp_1x1x1_rwkv > ./log/le_db_rwkv_task530_fold0_train.log 2>&1 &
 nohup mednextv1_train 3d_fullres nnUNetTrainerV2_Double_RWKV_MedNeXt 530 1 -p nnUNetPlansv2.1_trgSp_1x1x1_rwkv > ./log/le_db_rwkv_task530_fold1_b4c16_train.log 2>&1 &
 
