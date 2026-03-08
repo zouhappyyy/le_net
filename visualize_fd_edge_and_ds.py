@@ -57,20 +57,20 @@ def get_trainer(network: str, network_trainer: str, task: str, fold: int, plans_
     return trainer
 
 
-def _extract_case_data(trainer, case_id: str) -> Tuple[np.ndarray, np.ndarray]:
-    """从 trainer 的数据集字典中获取某个样本的图像和标签 (预处理后的 numpy)。
+def _extract_case_data(data_root: str, case_id: str) -> Tuple[np.ndarray, np.ndarray]:
+    """从预处理数据目录中读取某病例的 data 和 seg.
 
-    Assumes entries follow nnUNet's standard dataset dict structure with
-    'data_file' and 'seg_file' keys pointing to .npz files containing 'data'.
+    假设 data_root 结构类似 nnUNet_preprocessed/TaskXXX/.../nnUNetData_plans_.../，
+    其中包含 case_id.npz 或 case_id.nii.gz 对应的 numpy 预处理文件。
+    这里采用 nnUNet 经典预处理 npz 文件命名: case_id.npz，内部有 'data' 和 'seg'.
     """
-    dataset = trainer.dataset
-    if case_id not in dataset:
-        raise KeyError(f"Case id {case_id} not found in trainer.dataset. Available keys: {list(dataset.keys())[:5]} ...")
-    entry = dataset[case_id]
-    data_npz = np.load(entry['data_file'])
-    seg_npz = np.load(entry['seg_file'])
-    data = data_npz['data']  # [C, D, H, W]
-    seg = seg_npz['data']    # [1, D, H, W]
+    # 最简单的约定：<data_root>/<case_id>.npz
+    npz_path = os.path.join(data_root, f"{case_id}.npz")
+    if not os.path.isfile(npz_path):
+        raise FileNotFoundError(f"Could not find preprocessed file for case {case_id} at {npz_path}")
+    npz = np.load(npz_path)
+    data = npz['data']  # [C, D, H, W]
+    seg = npz['seg']    # [1, D, H, W]
     return data, seg
 
 
@@ -91,15 +91,17 @@ def _morphological_edge(label_3d: np.ndarray) -> np.ndarray:
 def run_inference_on_case(
     trainer: nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt,
     case_id: str,
-) -> Tuple[np.ndarray, List[np.ndarray], np.ndarray, np.ndarray]:
+    data_root: str,
+) -> Tuple[np.ndarray, List[np.ndarray], np.ndarray, np.ndarray, np.ndarray]:
     """对单个病例前向推理，返回：
     - 主分割预测 (seg_main_pred)
     - 深监督各尺度预测列表 (ds_preds)
     - 边界预测 edge_f0
     - GT 标签 (gt)
+    - 原始预处理图像 (image)
     """
-    # 直接从 dataset 中取出预处理数据
-    data_np, seg_np = _extract_case_data(trainer, case_id)
+    # 直接从用户指定的预处理目录中读取数据
+    data_np, seg_np = _extract_case_data(data_root, case_id)
 
     # 转为 torch tensor 并增加 batch 维度: [1, C, D, H, W]
     data_t = maybe_to_torch(data_np[None])
@@ -233,11 +235,12 @@ def main():
     parser.add_argument("--plans_identifier", type=str, default="nnUNetPlansv2.1_trgSp_1x1x1_rwkv", help="Plans identifier")
     parser.add_argument("--case_id", type=str, required=True, help="Case id key in trainer.dataset (e.g. 'ESO_TJ_...')")
     parser.add_argument("--output_dir", type=str, default="fd_edge_vis", help="Directory to save visualizations")
+    parser.add_argument("--data_root", type=str, required=True, help="Root folder of preprocessed data for this Task/stage (e.g. /home/.../nnUNet_preprocessed/Task530_.../nnUNetData_plans_v2.1_trgSp_1x1x1)")
     args = parser.parse_args()
 
     trainer = get_trainer(args.network, args.network_trainer, args.task, args.fold, args.plans_identifier)
 
-    seg_pred, ds_preds, edge_pred, gt, image = run_inference_on_case(trainer, args.case_id)
+    seg_pred, ds_preds, edge_pred, gt, image = run_inference_on_case(trainer, args.case_id, args.data_root)
 
     save_visualizations(
         args.output_dir,
