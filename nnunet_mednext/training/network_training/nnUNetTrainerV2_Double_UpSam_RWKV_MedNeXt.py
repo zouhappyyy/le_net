@@ -10,7 +10,14 @@ from nnunet_mednext.network_architecture.neural_network import SegmentationNetwo
 
 
 class Double_UpSam_RWKV_MedNeXt(Double_UpSam_RWKV_MedNeXt, SegmentationNetwork):
-    """Wrap Double_UpSam_RWKV_MedNeXt to be compatible with nnUNet SegmentationNetwork API."""
+    """Wrap Double_UpSam_RWKV_MedNeXt to be compatible with nnUNet SegmentationNetwork API.
+
+    During training we keep the deep supervision list output. During inference
+    (predict_3D / validate) nnUNet will call `self(x)` inside
+    `self.inference_apply_nonlin(self(x))`, so this wrapper ensures that a
+    single 5D tensor (the main full-resolution output) is returned instead of a
+    list, avoiding `AttributeError: 'list' object has no attribute 'softmax'`.
+    """
 
     def __init__(self, *args, **kwargs):
         """Signature follows MedNeXt / MyMedNext: in_channels, n_channels, n_classes, ..."""
@@ -20,6 +27,24 @@ class Double_UpSam_RWKV_MedNeXt(Double_UpSam_RWKV_MedNeXt, SegmentationNetwork):
         self.inference_apply_nonlin = softmax_helper
         self.input_shape_must_be_divisible_by = 2 ** 5
         self.num_classes = kwargs["n_classes"]
+
+    def forward(self, x):
+        """Return list for training, but tensor for inference.
+
+        nnUNet sets `.do_ds` to True during training and to False during
+        prediction/validation. The base Double_UpSam_RWKV_MedNeXt already
+        respects `self.do_ds` when constructing outputs, so here we only need
+        to unwrap the list in inference mode so that `inference_apply_nonlin`
+        always receives a tensor.
+        """
+        out = super().forward(x)
+        # When do_ds is True, super().forward returns [x, x_ds1, ...]. For
+        # inference, nnUNet temporarily sets network.do_ds = False, so we only
+        # need to guard against accidental list outputs here.
+        if isinstance(out, (list, tuple)):
+            return out[0]
+        return out
+
 
 class nnUNetTrainerV2_Double_UpSam_RWKV_MedNeXt(nnUNetTrainerV2_Optim_and_LR):
     """nnUNet Trainer using Double_UpSam_RWKV_MedNeXt as the backbone.

@@ -12,7 +12,13 @@ from nnunet_mednext.network_architecture.neural_network import SegmentationNetwo
 
 
 class Double_CCA_UPSam_fd_RWKV_MedNeXt(SegmentationNetwork):
-    """Thin SegmentationNetwork wrapper around Double_CCA_UPSam_fd_RWKV_MedNeXt_Orig."""
+    """Thin SegmentationNetwork wrapper around Double_CCA_UPSam_fd_RWKV_MedNeXt_Orig.
+
+    Training uses the full deep supervision output list from the underlying
+    network. During inference/validation, nnUNet calls `self(x)` inside
+    `self.inference_apply_nonlin(self(x))`, which expects a 5D tensor, not a
+    list, so we unwrap the main output when needed.
+    """
 
     def __init__(self, *args, **kwargs):
         super().__init__()
@@ -29,13 +35,22 @@ class Double_CCA_UPSam_fd_RWKV_MedNeXt(SegmentationNetwork):
         self.do_ds = getattr(self.net, "do_ds", False)
 
     def forward(self, x):
-        return self.net(x)
+        out = self.net(x)
+        # 训练阶段：loss 期望看到完整的 DS 列表，这里直接返回原始输出
+        if self.training:
+            return out
+        # 推理/验证阶段：nnUNet 通常设置 network.do_ds = False，但为安全起见，
+        # 若仍返回 list/tuple，则只取主输出 (out[0]) 供 softmax 使用
+        if isinstance(out, (list, tuple)):
+            return out[0]
+        return out
 
 
 class nnUNetTrainerV2_Double_CCA_UPSam_fd_RWKV_MedNeXt(nnUNetTrainerV2_Optim_and_LR):
     """nnUNet Trainer using Double_CCA_UPSam_fd_RWKV_MedNeXt as the backbone."""
 
     def __init__(self, *args, **kwargs):
+        # 该 RWKV 变体同样在 fp16 下较容易数值不稳定，这里强制使用 fp32 训练
         kwargs["fp16"] = False
         super().__init__(*args, **kwargs)
         # unify max epochs as in your other custom trainers
