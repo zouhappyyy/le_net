@@ -11,15 +11,20 @@ from nnunet_mednext.training.network_training.nnUNetTrainerV2_Double_CCA_UPSam_f
 )
 from nnunet_mednext.utilities.to_torch import maybe_to_torch
 from nnunet_mednext.utilities.nd_softmax import softmax_helper
-from batchgenerators.utilities.file_and_folder_operations import load_pickle
 
 
-def get_trainer(plans_file: str, fold: int, output_folder: str = None) -> nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt:
-    """Initialize trainer and load best/final checkpoint in eval mode."""
+def get_trainer(plans_file: str, fold: int) -> nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt:
+    """Initialize trainer and load best/final checkpoint in eval mode.
+
+    We intentionally do not override output_folder so that the base nnUNet
+    trainer can derive it from the plans/task configuration. dataset_directory
+    is also left as None to let nnUNet resolve its standard preprocessed
+    dataset location.
+    """
     trainer = nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt(
         plans_file,
         fold,
-        output_folder=output_folder,
+        # do not pass output_folder=None here to avoid AttributeError in update_fold
         dataset_directory=None,
         batch_dice=True,
         stage=None,
@@ -38,14 +43,19 @@ def get_trainer(plans_file: str, fold: int, output_folder: str = None) -> nnUNet
 
 
 def _extract_case_data(trainer, case_id: str) -> Tuple[np.ndarray, np.ndarray]:
-    """从 trainer 的数据集字典中获取某个样本的图像和标签 (预处理后的 numpy)。"""
-    # 假设使用的是 stage0 数据集
+    """从 trainer 的数据集字典中获取某个样本的图像和标签 (预处理后的 numpy)。
+
+    Assumes entries follow nnUNet's standard dataset dict structure with
+    'data_file' and 'seg_file' keys pointing to .npz files containing 'data'.
+    """
     dataset = trainer.dataset
     if case_id not in dataset:
-        raise KeyError(f"Case id {case_id} not found in trainer.dataset")
+        raise KeyError(f"Case id {case_id} not found in trainer.dataset. Available keys: {list(dataset.keys())[:5]} ...")
     entry = dataset[case_id]
-    data = np.load(entry['data_file'])['data']  # [C, D, H, W]
-    seg = np.load(entry['seg_file'])['data']    # [1, D, H, W]
+    data_npz = np.load(entry['data_file'])
+    seg_npz = np.load(entry['seg_file'])
+    data = data_npz['data']  # [C, D, H, W]
+    seg = seg_npz['data']    # [1, D, H, W]
     return data, seg
 
 
