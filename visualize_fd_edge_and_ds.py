@@ -214,38 +214,38 @@ def save_visualizations(
     """保存原图 / 分割预测 / GT / 边界预测 / GT 边界 / 深监督预测切片图。"""
     os.makedirs(output_dir, exist_ok=True)
 
-    # 选中间一张切片进行可视化
-    z = image.shape[1] // 2  # image: [C, D, H, W]
-    img_slice = image[0, z]
-    seg_slice = seg_pred[z]
-    edge_slice = edge_pred[z]
-    gt_slice = gt[z]
-    gt_edge_slice = _morphological_edge(gt)[z]
+    # 选中间一张切片进行可视化（主输出）
+    z_main = image.shape[1] // 2  # image: [C, D, H, W]
+    img_slice_main = image[0, z_main]
+    seg_slice = seg_pred[z_main]
+    edge_slice = edge_pred[z_main]
+    gt_slice = gt[z_main]
+    gt_edge_slice = _morphological_edge(gt)[z_main]
 
     # 1) 原图 + 主分割 + GT + GT 边界 + 预测边界
     fig, axes = plt.subplots(2, 3, figsize=(12, 8))
 
-    axes[0, 0].imshow(img_slice, cmap="gray")
+    axes[0, 0].imshow(img_slice_main, cmap="gray")
     axes[0, 0].set_title("Input")
     axes[0, 0].axis("off")
 
-    axes[0, 1].imshow(img_slice, cmap="gray")
+    axes[0, 1].imshow(img_slice_main, cmap="gray")
     axes[0, 1].imshow(seg_slice, alpha=0.5)
     axes[0, 1].set_title("Segmentation Pred")
     axes[0, 1].axis("off")
 
-    axes[0, 2].imshow(img_slice, cmap="gray")
+    axes[0, 2].imshow(img_slice_main, cmap="gray")
     axes[0, 2].imshow(gt_slice, alpha=0.5)
     axes[0, 2].set_title("GT Segmentation")
     axes[0, 2].axis("off")
 
-    axes[1, 0].imshow(img_slice, cmap="gray")
+    axes[1, 0].imshow(img_slice_main, cmap="gray")
     im0 = axes[1, 0].imshow(edge_slice, cmap="jet", alpha=0.5)
     axes[1, 0].set_title("Pred Edge (f0)")
     axes[1, 0].axis("off")
     fig.colorbar(im0, ax=axes[1, 0], fraction=0.046, pad=0.04)
 
-    axes[1, 1].imshow(img_slice, cmap="gray")
+    axes[1, 1].imshow(img_slice_main, cmap="gray")
     axes[1, 1].imshow(gt_edge_slice, cmap="jet", alpha=0.5)
     axes[1, 1].set_title("GT Edge")
     axes[1, 1].axis("off")
@@ -265,12 +265,17 @@ def save_visualizations(
             axes_ds = np.array([[axes_ds]])
         axes_ds = axes_ds.reshape(rows, cols)
 
+        # 使用主输出对应的原图切片作为背景
+        img_slice_for_ds = img_slice_main
+
         for i, ds in enumerate(ds_preds):
             r = i // cols
             c = i % cols
-            axes_ds[r, c].imshow(img_slice, cmap="gray")
-            axes_ds[r, c].imshow(ds[z], alpha=0.5)
-            axes_ds[r, c].set_title(f"DS level {i+1}")
+            # 对每个 ds 使用它自身深度维度的中间切片，避免越界
+            z_ds = ds.shape[0] // 2
+            axes_ds[r, c].imshow(img_slice_for_ds, cmap="gray")
+            axes_ds[r, c].imshow(ds[z_ds], alpha=0.5)
+            axes_ds[r, c].set_title(f"DS level {i+1} (z={z_ds})")
             axes_ds[r, c].axis("off")
 
         # 关闭未使用的子图
