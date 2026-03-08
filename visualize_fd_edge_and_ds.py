@@ -13,25 +13,18 @@ from nnunet_mednext.utilities.to_torch import maybe_to_torch
 from nnunet_mednext.utilities.nd_softmax import softmax_helper
 
 
-def get_trainer(plans_file: str, fold: int) -> nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt:
-    """Initialize trainer from an explicit plans_file and fold.
+def get_trainer(plans_file: str, fold: int, output_folder: str) -> nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt:
+    """Initialize trainer from an explicit plans_file, fold, and trained output_folder.
 
-    This matches your custom Task530 plans (e.g. nnUNetPlansv2.1_trgSp_1x1x1_rwkv_plans_3D.pkl)
-    without relying on get_default_configuration.
+    output_folder must be the same as used during training, e.g.
+    /home/fangzheng/zoule/mednext/ckpt/nnUNet/3d_fullres/Task530_EsoTJ_30pct/
+    nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt__nnUNetPlansv2.1_trgSp_1x1x1_rwkv
+    so that fold-specific checkpoints (fold_X/model_*.model) can be found.
     """
-    # Derive a reasonable output folder from the plans_file location so that
-    # nnUNetTrainer.update_fold has a valid string to work with.
     plans_dir = os.path.dirname(plans_file)
-    # e.g. .../nnUNet_preprocessed/Task530_... -> task_dir is the Task folder,
-    # and dataset_directory should be the nnUNet_preprocessed root
+    # dataset_directory should be the nnUNet_preprocessed root
     task_dir = os.path.dirname(plans_dir)
     dataset_directory = task_dir  # /.../nnUNet_preprocessed
-    output_folder = os.path.join(
-        task_dir,
-        "visualize_fd_edge_and_ds",
-        f"fold_{fold}",
-    )
-    os.makedirs(output_folder, exist_ok=True)
 
     trainer = nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt(
         plans_file,
@@ -237,12 +230,13 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--plans_file", type=str, required=True, help="Path to your custom plans.pkl (e.g. nnUNetPlansv2.1_trgSp_1x1x1_rwkv_plans_3D.pkl)")
     parser.add_argument("--fold", type=int, default=0, help="Fold index")
+    parser.add_argument("--output_folder", type=str, required=True, help="Trained output folder used during training (without /fold_X)")
     parser.add_argument("--case_id", type=str, required=True, help="Case id (e.g. 'ESO_TJ_60011222468')")
     parser.add_argument("--output_dir", type=str, default="fd_edge_vis", help="Directory to save visualizations")
     parser.add_argument("--data_root", type=str, required=True, help="Root folder of preprocessed data for this Task/stage (e.g. /home/.../nnUNet_preprocessed/Task530_.../nnUNetData_plans_v2.1_trgSp_1x1x1)")
     args = parser.parse_args()
 
-    trainer = get_trainer(args.plans_file, args.fold)
+    trainer = get_trainer(args.plans_file, args.fold, args.output_folder)
 
     seg_pred, ds_preds, edge_pred, gt, image = run_inference_on_case(trainer, args.case_id, args.data_root)
 
