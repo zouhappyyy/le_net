@@ -150,6 +150,17 @@ def run_inference_on_case(
     # 直接从用户指定的预处理目录中读取数据 + 从 gt_segmentations 读取 GT
     data_np, seg_np = _extract_case_data(data_root, case_id, trainer.dataset_directory)
 
+    # 将 128^3 裁剪为与训练一致的 patch size 64^3，避免 RWKV 的 T_MAX 限制
+    C, D, H, W = data_np.shape
+    patch_size = 64
+    half = patch_size // 2
+    cz, cy, cx = D // 2, H // 2, W // 2
+    z1, z2 = max(0, cz - half), min(D, cz + half)
+    y1, y2 = max(0, cy - half), min(H, cy + half)
+    x1, x2 = max(0, cx - half), min(W, cx + half)
+    data_np = data_np[:, z1:z2, y1:y2, x1:x2]
+    seg_np = seg_np[:, z1:z2, y1:y2, x1:x2]
+
     # 转为 torch tensor 并增加 batch 维度: [1, C, D, H, W]
     data_t = maybe_to_torch(data_np[None])
     if torch.cuda.is_available():
