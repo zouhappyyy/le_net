@@ -6,7 +6,6 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 
-from nnunet_mednext.run.default_configuration import get_default_configuration
 from nnunet_mednext.training.network_training.nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt import (
     nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt,
 )
@@ -14,41 +13,24 @@ from nnunet_mednext.utilities.to_torch import maybe_to_torch
 from nnunet_mednext.utilities.nd_softmax import softmax_helper
 
 
-def get_trainer(network: str, network_trainer: str, task: str, fold: int, plans_identifier: str) -> nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt:
-    """Initialize trainer using nnUNet's default configuration and load checkpoint.
+def get_trainer(plans_file: str, fold: int) -> nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt:
+    """Initialize trainer from an explicit plans_file and fold.
 
-    This mirrors nnunet_mednext.run.run_training: we first resolve plans_file,
-    output_folder, dataset_directory, batch_dice and stage via
-    get_default_configuration, then instantiate our custom trainer.
+    This matches your custom Task530 plans (e.g. nnUNetPlansv2.1_trgSp_1x1x1_rwkv_plans_3D.pkl)
+    without relying on get_default_configuration.
     """
-    # resolve TaskXXX name if task is an int
-    from nnunet_mednext.utilities.task_name_id_conversion import convert_id_to_task_name
-    from nnunet_mednext.paths import default_plans_identifier
-
-    if not task.startswith("Task"):
-        task_id = int(task)
-        task = convert_id_to_task_name(task_id)
-
-    if not plans_identifier:
-        plans_identifier = default_plans_identifier
-
-    plans_file, output_folder_name, dataset_directory, batch_dice, stage, _ = get_default_configuration(
-        network, task, network_trainer, plans_identifier
-    )
-
     trainer = nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt(
         plans_file,
         fold,
-        output_folder=output_folder_name,
-        dataset_directory=dataset_directory,
-        batch_dice=batch_dice,
-        stage=stage,
+        output_folder=None,
+        dataset_directory=None,
+        batch_dice=True,
+        stage=0,
         unpack_data=False,
         deterministic=False,
         fp16=False,
     )
     trainer.initialize(training=False)
-    # 尝试优先加载 best checkpoint
     try:
         trainer.load_best_checkpoint(train=False)
     except Exception:
@@ -60,14 +42,25 @@ def get_trainer(network: str, network_trainer: str, task: str, fold: int, plans_
 def _extract_case_data(data_root: str, case_id: str) -> Tuple[np.ndarray, np.ndarray]:
     """从预处理数据目录中读取某病例的 data 和 seg.
 
-    假设 data_root 结构类似 nnUNet_preprocessed/TaskXXX/.../nnUNetData_plans_.../，
-    其中包含 case_id.npz 或 case_id.nii.gz 对应的 numpy 预处理文件。
-    这里采用 nnUNet 经典预处理 npz 文件命名: case_id.npz，内部有 'data' 和 'seg'.
+    优先尝试 <data_root>/<case_id>.npz；如果不存在，则匹配所有以
+    case_id 开头且以 .npz 结尾的文件（例如 CASEID_0000.npz）。
     """
-    # 最简单的约定：<data_root>/<case_id>.npz
-    npz_path = os.path.join(data_root, f"{case_id}.npz")
-    if not os.path.isfile(npz_path):
-        raise FileNotFoundError(f"Could not find preprocessed file for case {case_id} at {npz_path}")
+    # 精确匹配 case_id.npz
+    exact_path = os.path.join(data_root, f"{case_id}.npz")
+    if os.path.isfile(exact_path):
+        npz_path = exact_path
+    else:
+        # 模糊匹配 case_id*.npz
+        candidates = [f for f in os.listdir(data_root) if f.startswith(case_id) and f.endswith(".npz")]
+        if not candidates:
+            raise FileNotFoundError(
+                f"Could not find preprocessed npz for case {case_id} under {data_root}. "
+                f"Checked for {exact_path} and any '{case_id}*.npz'."
+            )
+        if len(candidates) > 1:
+            print(f"[WARN] Multiple npz files match case_id {case_id}: {candidates}. Using {candidates[0]}")
+        npz_path = os.path.join(data_root, candidates[0])
+
     npz = np.load(npz_path)
     data = npz['data']  # [C, D, H, W]
     seg = npz['seg']    # [1, D, H, W]
@@ -228,17 +221,14 @@ def save_visualizations(
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--network", type=str, required=True, help="nnUNet network (e.g. 3d_fullres)")
-    parser.add_argument("--network_trainer", type=str, required=True, help="Trainer class name (e.g. nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt)")
-    parser.add_argument("--task", type=str, required=True, help="Task name or id (e.g. 505 or Task505)")
+    parser.add_argument("--plans_file", type=str, required=True, help="Path to your custom plans.pkl (e.g. nnUNetPlansv2.1_trgSp_1x1x1_rwkv_plans_3D.pkl)")
     parser.add_argument("--fold", type=int, default=0, help="Fold index")
-    parser.add_argument("--plans_identifier", type=str, default="nnUNetPlansv2.1_trgSp_1x1x1_rwkv", help="Plans identifier")
-    parser.add_argument("--case_id", type=str, required=True, help="Case id key in trainer.dataset (e.g. 'ESO_TJ_...')")
+    parser.add_argument("--case_id", type=str, required=True, help="Case id (e.g. 'ESO_TJ_60011222468')")
     parser.add_argument("--output_dir", type=str, default="fd_edge_vis", help="Directory to save visualizations")
     parser.add_argument("--data_root", type=str, required=True, help="Root folder of preprocessed data for this Task/stage (e.g. /home/.../nnUNet_preprocessed/Task530_.../nnUNetData_plans_v2.1_trgSp_1x1x1)")
     args = parser.parse_args()
 
-    trainer = get_trainer(args.network, args.network_trainer, args.task, args.fold, args.plans_identifier)
+    trainer = get_trainer(args.plans_file, args.fold)
 
     seg_pred, ds_preds, edge_pred, gt, image = run_inference_on_case(trainer, args.case_id, args.data_root)
 
