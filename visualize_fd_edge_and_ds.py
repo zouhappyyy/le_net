@@ -6,6 +6,7 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 
+from nnunet_mednext.run.default_configuration import get_default_configuration
 from nnunet_mednext.training.network_training.nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt import (
     nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt,
 )
@@ -13,21 +14,35 @@ from nnunet_mednext.utilities.to_torch import maybe_to_torch
 from nnunet_mednext.utilities.nd_softmax import softmax_helper
 
 
-def get_trainer(plans_file: str, fold: int) -> nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt:
-    """Initialize trainer and load best/final checkpoint in eval mode.
+def get_trainer(network: str, network_trainer: str, task: str, fold: int, plans_identifier: str) -> nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt:
+    """Initialize trainer using nnUNet's default configuration and load checkpoint.
 
-    We intentionally do not override output_folder so that the base nnUNet
-    trainer can derive it from the plans/task configuration. dataset_directory
-    is also left as None to let nnUNet resolve its standard preprocessed
-    dataset location.
+    This mirrors nnunet_mednext.run.run_training: we first resolve plans_file,
+    output_folder, dataset_directory, batch_dice and stage via
+    get_default_configuration, then instantiate our custom trainer.
     """
+    # resolve TaskXXX name if task is an int
+    from nnunet_mednext.utilities.task_name_id_conversion import convert_id_to_task_name
+    from nnunet_mednext.paths import default_plans_identifier
+
+    if not task.startswith("Task"):
+        task_id = int(task)
+        task = convert_id_to_task_name(task_id)
+
+    if not plans_identifier:
+        plans_identifier = default_plans_identifier
+
+    plans_file, output_folder_name, dataset_directory, batch_dice, stage, _ = get_default_configuration(
+        network, task, network_trainer, plans_identifier
+    )
+
     trainer = nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt(
         plans_file,
         fold,
-        # do not pass output_folder=None here to avoid AttributeError in update_fold
-        dataset_directory=None,
-        batch_dice=True,
-        stage=None,
+        output_folder=output_folder_name,
+        dataset_directory=dataset_directory,
+        batch_dice=batch_dice,
+        stage=stage,
         unpack_data=False,
         deterministic=False,
         fp16=False,
@@ -211,13 +226,16 @@ def save_visualizations(
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--plans_file", type=str, required=True, help="Path to plans.pkl used for this trainer")
+    parser.add_argument("--network", type=str, required=True, help="nnUNet network (e.g. 3d_fullres)")
+    parser.add_argument("--network_trainer", type=str, required=True, help="Trainer class name (e.g. nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt)")
+    parser.add_argument("--task", type=str, required=True, help="Task name or id (e.g. 505 or Task505)")
     parser.add_argument("--fold", type=int, default=0, help="Fold index")
+    parser.add_argument("--plans_identifier", type=str, default="nnUNetPlansv2.1_trgSp_1x1x1_rwkv", help="Plans identifier")
     parser.add_argument("--case_id", type=str, required=True, help="Case id key in trainer.dataset (e.g. 'ESO_TJ_...')")
     parser.add_argument("--output_dir", type=str, default="fd_edge_vis", help="Directory to save visualizations")
     args = parser.parse_args()
 
-    trainer = get_trainer(args.plans_file, args.fold)
+    trainer = get_trainer(args.network, args.network_trainer, args.task, args.fold, args.plans_identifier)
 
     seg_pred, ds_preds, edge_pred, gt, image = run_inference_on_case(trainer, args.case_id)
 

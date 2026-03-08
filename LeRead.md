@@ -50,3 +50,4 @@ nvidia-smi -q -d PIDS
 fuser -v /dev/nvidia*
 pkill -f mednextv1_train
 /zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task505_EsoTJ_10pct/nnUNetPlansv2.1_trgSp_1x1x1_plans_3D.pkl
+
