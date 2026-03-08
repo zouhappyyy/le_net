@@ -46,31 +46,71 @@ def get_trainer(plans_file: str, fold: int, output_folder: str) -> nnUNetTrainer
     return trainer
 
 
-def _extract_case_data(data_root: str, case_id: str) -> Tuple[np.ndarray, np.ndarray]:
-    """从预处理数据目录中读取某病例的 data 和 seg.
+def _extract_case_data(data_root: str, case_id: str, dataset_directory: str) -> Tuple[np.ndarray, np.ndarray]:
+    """从预处理数据目录和 gt_segmentations 中读取某病例的 data 和 seg.
 
-    优先尝试 <data_root>/<case_id>.npz；如果不存在，则匹配所有以
-    case_id 开头且以 .npz 结尾的文件（例如 CASEID_0000.npz）。
+    对于 Task530_EsoTJ_30pct，stage0 预处理数据存储为若干 .npy 文件（每个模态一个），
+    不再是标准的 data/seg npz 结构。因此这里：
+      - 在 data_root 中查找所有以 case_id 开头的 .npy 文件，并按模态维堆叠得到 data[C, D, H, W]
+      - 从 dataset_directory/gt_segmentations 读取对应的 NIfTI 标签作为 seg[D, H, W]
     """
-    # 精确匹配 case_id.npz
-    exact_path = os.path.join(data_root, f"{case_id}.npz")
-    if os.path.isfile(exact_path):
-        npz_path = exact_path
-    else:
-        # 模糊匹配 case_id*.npz
-        candidates = [f for f in os.listdir(data_root) if f.startswith(case_id) and f.endswith(".npz")]
-        if not candidates:
-            raise FileNotFoundError(
-                f"Could not find preprocessed npz for case {case_id} under {data_root}. "
-                f"Checked for {exact_path} and any '{case_id}*.npz'."
-            )
-        if len(candidates) > 1:
-            print(f"[WARN] Multiple npz files match case_id {case_id}: {candidates}. Using {candidates[0]}")
-        npz_path = os.path.join(data_root, candidates[0])
+    # 1) 收集所有以 case_id 开头的 .npy 文件
+    if not os.path.isdir(data_root):
+        raise FileNotFoundError(f"data_root {data_root} does not exist")
 
-    npz = np.load(npz_path)
-    data = npz['data']  # [C, D, H, W]
-    seg = npz['seg']    # [1, D, H, W]
+    npy_candidates = [
+        f for f in os.listdir(data_root)
+        if f.startswith(case_id) and f.endswith(".npy")
+    ]
+    if not npy_candidates:
+        raise FileNotFoundError(
+            f"No preprocessed .npy files found for case {case_id} under {data_root}. "
+            f"Expected files like {case_id}_0000.npy."
+        )
+    npy_candidates.sort()
+
+    data_list = []
+    for f in npy_candidates:
+        arr = np.load(os.path.join(data_root, f))
+        # 确保形状为 [D, H, W]
+        if arr.ndim == 4 and arr.shape[0] == 1:
+            arr = arr[0]
+        data_list.append(arr)
+    # 堆叠成 [C, D, H, W]
+    data = np.stack(data_list, axis=0).astype(np.float32)
+
+    # 2) 从 gt_segmentations 中读取 NIfTI 标签
+    import nibabel as nib
+
+    gt_dir = os.path.join(dataset_directory, "gt_segmentations")
+    if not os.path.isdir(gt_dir):
+        raise FileNotFoundError(f"gt_segmentations folder not found at {gt_dir}")
+
+    gt_path = None
+    for ext in (".nii.gz", ".nii"):
+        p = os.path.join(gt_dir, f"{case_id}{ext}")
+        if os.path.isfile(p):
+            gt_path = p
+            break
+    if gt_path is None:
+        raise FileNotFoundError(f"Could not find GT NIfTI for case {case_id} in {gt_dir}")
+
+    gt_img = nib.load(gt_path)
+    gt_arr = gt_img.get_fdata()
+    # 保证为整数标签 [D, H, W]
+    gt = gt_arr.astype(np.int16)
+    if gt.ndim == 4 and gt.shape[-1] == 1:
+        gt = gt[..., 0]
+
+    # 如果需要，确保与 data 的空间维度一致（简单裁剪/截断，可根据需要调整）
+    if gt.shape != data.shape[1:]:
+        # 简单地最小形状裁剪
+        min_shape = tuple(min(g, d) for g, d in zip(gt.shape, data.shape[1:]))
+        gt = gt[:min_shape[0], :min_shape[1], :min_shape[2]]
+        data = data[:, :min_shape[0], :min_shape[1], :min_shape[2]]
+
+    # seg 返回形状为 [1, D, H, W]
+    seg = gt[None].astype(np.uint8)
     return data, seg
 
 
@@ -100,8 +140,8 @@ def run_inference_on_case(
     - GT 标签 (gt)
     - 原始预处理图像 (image)
     """
-    # 直接从用户指定的预处理目录中读取数据
-    data_np, seg_np = _extract_case_data(data_root, case_id)
+    # 直接从用户指定的预处理目录中读取数据 + 从 gt_segmentations 读取 GT
+    data_np, seg_np = _extract_case_data(data_root, case_id, trainer.dataset_directory)
 
     # 转为 torch tensor 并增加 batch 维度: [1, C, D, H, W]
     data_t = maybe_to_torch(data_np[None])
