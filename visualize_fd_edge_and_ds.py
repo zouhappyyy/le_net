@@ -22,9 +22,9 @@ def get_trainer(plans_file: str, fold: int, output_folder: str) -> nnUNetTrainer
     so that fold-specific checkpoints (fold_X/model_*.model) can be found.
     """
     plans_dir = os.path.dirname(plans_file)
-    # dataset_directory should be the nnUNet_preprocessed root
-    task_dir = os.path.dirname(plans_dir)
-    dataset_directory = task_dir  # /.../nnUNet_preprocessed
+    # For Task530_EsoTJ_30pct the dataset_directory is the Task folder itself
+    # (it contains dataset.json and nnUNetData_plans_v2.1_trgSp_1x1x1_stage0)
+    dataset_directory = plans_dir  # /.../nnUNet_preprocessed/Task530_EsoTJ_30pct
 
     trainer = nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt(
         plans_file,
@@ -233,7 +233,7 @@ def main():
     parser.add_argument("--output_folder", type=str, required=True, help="Trained output folder used during training (without /fold_X)")
     parser.add_argument("--case_id", type=str, required=True, help="Case id (e.g. 'ESO_TJ_60011222468')")
     parser.add_argument("--output_dir", type=str, default="fd_edge_vis", help="Directory to save visualizations")
-    parser.add_argument("--data_root", type=str, required=True, help="Root folder of preprocessed data for this Task/stage (e.g. /home/.../nnUNet_preprocessed/Task530_.../nnUNetData_plans_v2.1_trgSp_1x1x1)")
+    parser.add_argument("--data_root", type=str, required=True, help="Root folder of preprocessed data for this Task/stage (e.g. /home/.../Task530_.../nnUNetData_plans_v2.1_trgSp_1x1x1_stage0)")
     args = parser.parse_args()
 
     trainer = get_trainer(args.plans_file, args.fold, args.output_folder)
