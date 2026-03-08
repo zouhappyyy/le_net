@@ -34,13 +34,21 @@ class Double_CCA_UPSam_fd_loss_RWKV_MedNeXt(SegmentationNetwork):
 
     def forward(self, x):
         out = self.net(x)
-        # 训练阶段：loss 期望看到完整的 DS 列表，这里直接返回原始输出
+        # 训练阶段：loss 期望看到完整的 (seg_outputs, edge_f0, edge_f1)
         if self.training:
             return out
+
         # 推理/验证阶段：nnUNet 通常设置 network.do_ds = False，但为安全起见，
-        # 若仍返回 list/tuple，则只取主输出 (out[0]) 供 softmax 使用
+        # 若仍返回 (seg_outputs, edge_f0, edge_f1)，只取 seg_outputs 的主分支供 softmax 使用
         if isinstance(out, (list, tuple)):
-            return out[0]
+            # 第一层：解包 (seg_outputs, edge_f0, edge_f1)
+            seg_outputs = out[0]
+            # 第二层：seg_outputs 也可能是 [x, x_ds1, ...]，继续取最高分辨率主输出 x
+            if isinstance(seg_outputs, (list, tuple)):
+                return seg_outputs[0]
+            return seg_outputs
+
+        # 如果底层网络已经直接返回单个 logits tensor，则直接透传
         return out
 
 
