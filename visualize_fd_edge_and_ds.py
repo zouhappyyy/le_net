@@ -49,35 +49,42 @@ def get_trainer(plans_file: str, fold: int, output_folder: str) -> nnUNetTrainer
 def _extract_case_data(data_root: str, case_id: str, dataset_directory: str) -> Tuple[np.ndarray, np.ndarray]:
     """从预处理数据目录和 gt_segmentations 中读取某病例的 data 和 seg.
 
-    对于 Task530_EsoTJ_30pct，stage0 预处理数据存储为若干 .npy 文件（每个模态一个），
-    不再是标准的 data/seg npz 结构。因此这里：
-      - 在 data_root 中查找所有以 case_id 开头的 .npy 文件，并按模态维堆叠得到 data[C, D, H, W]
+    对于 Task530_EsoTJ_30pct，stage0 预处理数据每个病例对应单个 .npy 文件，
+    其 shape 为 (C, D, H, W)。因此这里：
+      - 直接加载 <case_id>.npy（或以 case_id 开头的 .npy），并规范为 data[C, D, H, W]
       - 从 dataset_directory/gt_segmentations 读取对应的 NIfTI 标签作为 seg[D, H, W]
     """
-    # 1) 收集所有以 case_id 开头的 .npy 文件
     if not os.path.isdir(data_root):
         raise FileNotFoundError(f"data_root {data_root} does not exist")
 
-    npy_candidates = [
-        f for f in os.listdir(data_root)
-        if f.startswith(case_id) and f.endswith(".npy")
-    ]
-    if not npy_candidates:
-        raise FileNotFoundError(
-            f"No preprocessed .npy files found for case {case_id} under {data_root}. "
-            f"Expected files like {case_id}_0000.npy."
-        )
-    npy_candidates.sort()
+    # 1) 找到单个 .npy 文件（例如 ESO_TJ_60011222468.npy）
+    exact_npy = os.path.join(data_root, f"{case_id}.npy")
+    if os.path.isfile(exact_npy):
+        npy_candidates = [exact_npy]
+    else:
+        npy_files = [
+            os.path.join(data_root, f) for f in os.listdir(data_root)
+            if f.startswith(case_id) and f.endswith(".npy")
+        ]
+        if not npy_files:
+            raise FileNotFoundError(
+                f"No preprocessed .npy file found for case {case_id} under {data_root}. "
+                f"Expected a file like {case_id}.npy."
+            )
+        if len(npy_files) > 1:
+            print(f"[WARN] Multiple .npy files match case_id {case_id}: {[os.path.basename(f) for f in npy_files]}. Using {os.path.basename(npy_files[0])}")
+        npy_candidates = [npy_files[0]]
 
-    data_list = []
-    for f in npy_candidates:
-        arr = np.load(os.path.join(data_root, f))
-        # 确保形状为 [D, H, W]
-        if arr.ndim == 4 and arr.shape[0] == 1:
-            arr = arr[0]
-        data_list.append(arr)
-    # 堆叠成 [C, D, H, W]
-    data = np.stack(data_list, axis=0).astype(np.float32)
+    arr = np.load(npy_candidates[0])
+    # 规范化为 [C, D, H, W]
+    if arr.ndim == 4:
+        # 常见情况: (C, D, H, W)
+        data = arr.astype(np.float32)
+    elif arr.ndim == 3:
+        # 单通道 (D, H, W)
+        data = arr[None].astype(np.float32)
+    else:
+        raise RuntimeError(f"Unexpected array shape {arr.shape} in {npy_candidates[0]}, expected (C,D,H,W) or (D,H,W)")
 
     # 2) 从 gt_segmentations 中读取 NIfTI 标签
     import nibabel as nib
@@ -97,19 +104,16 @@ def _extract_case_data(data_root: str, case_id: str, dataset_directory: str) -> 
 
     gt_img = nib.load(gt_path)
     gt_arr = gt_img.get_fdata()
-    # 保证为整数标签 [D, H, W]
     gt = gt_arr.astype(np.int16)
     if gt.ndim == 4 and gt.shape[-1] == 1:
         gt = gt[..., 0]
 
-    # 如果需要，确保与 data 的空间维度一致（简单裁剪/截断，可根据需要调整）
+    # 对齐 data 与 gt 的空间维度（简单裁剪到最小形状）
     if gt.shape != data.shape[1:]:
-        # 简单地最小形状裁剪
         min_shape = tuple(min(g, d) for g, d in zip(gt.shape, data.shape[1:]))
         gt = gt[:min_shape[0], :min_shape[1], :min_shape[2]]
         data = data[:, :min_shape[0], :min_shape[1], :min_shape[2]]
 
-    # seg 返回形状为 [1, D, H, W]
     seg = gt[None].astype(np.uint8)
     return data, seg
 
