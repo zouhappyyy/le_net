@@ -22,8 +22,10 @@ def get_trainer(plans_file: str, fold: int) -> nnUNetTrainerV2_Double_CCA_UPSam_
     # Derive a reasonable output folder from the plans_file location so that
     # nnUNetTrainer.update_fold has a valid string to work with.
     plans_dir = os.path.dirname(plans_file)
-    # e.g. .../nnUNet_preprocessed/Task530_... -> put outputs under same Task folder
+    # e.g. .../nnUNet_preprocessed/Task530_... -> task_dir is the Task folder,
+    # and dataset_directory should be the nnUNet_preprocessed root
     task_dir = os.path.dirname(plans_dir)
+    dataset_directory = task_dir  # /.../nnUNet_preprocessed
     output_folder = os.path.join(
         task_dir,
         "visualize_fd_edge_and_ds",
@@ -35,7 +37,7 @@ def get_trainer(plans_file: str, fold: int) -> nnUNetTrainerV2_Double_CCA_UPSam_
         plans_file,
         fold,
         output_folder=output_folder,
-        dataset_directory=None,
+        dataset_directory=dataset_directory,
         batch_dice=True,
         stage=0,
         unpack_data=False,
