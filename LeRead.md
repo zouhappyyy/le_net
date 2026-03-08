@@ -24,10 +24,10 @@ nohup mednextv1_train 3d_fullres nnUNetTrainerV2_Double_RWKV_MedNeXt 505 0 -p nn
 nohup mednextv1_train 3d_fullres nnUNetTrainerV2_Double_RWKV_MedNeXt 530 1 -p nnUNetPlansv2.1_trgSp_1x1x1_rwkv > ./log/le_rwkv_task530_fold1_train.log 2>&1 &
 
 
-nohup mednextv1_train 3d_fullres nnUNetTrainerV2_Double_UpSam_RWKV_MedNeXt 505 0 -p nnUNetPlansv2.1_trgSp_1x1x1_rwkv > ./log/le_db_up_rwkv_task505_fold0_train.log 2>&1 &
-nohup mednextv1_train 3d_fullres nnUNetTrainerV2_Double_CCA_UPSam_RWKV_MedNeXt 505 0 -p nnUNetPlansv2.1_trgSp_1x1x1_rwkv > ./log/le_db_cca_up_rwkv_task505_fold0_train.log 2>&1 &
+nohup mednextv1_train 3d_fullres nnUNetTrainerV2_Double_UpSam_RWKV_MedNeXt 530 1 -p nnUNetPlansv2.1_trgSp_1x1x1_rwkv > ./log/le/rwkv_up_task530_fold1_train.log 2>&1 &
+nohup mednextv1_train 3d_fullres nnUNetTrainerV2_Double_CCA_UPSam_RWKV_MedNeXt 530 1 -p nnUNetPlansv2.1_trgSp_1x1x1_rwkv > ./log/le/rwkv_db_cca_up_task530_fold1_train.log 2>&1 &
 nohup mednextv1_train 3d_fullres nnUNetTrainerV2_Double_CCA_UPSam_fd_RWKV_MedNeXt 530 1 -p nnUNetPlansv2.1_trgSp_1x1x1_rwkv > ./log/le/rwkv_cca_up_fd_task530_fold1_train.log 2>&1 &
-nohup mednextv1_train 3d_fullres nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt 530 1 -p nnUNetPlansv2.1_trgSp_1x1x1_rwkv > ./log/le/rwkv_db_cca_up_fd_loss_task530_fold1_train.log 2>&1 &
+nohup mednextv1_train 3d_fullres nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt 530 2 -p nnUNetPlansv2.1_trgSp_1x1x1_rwkv > ./log/le/rwkv_db_cca_up_fd_loss_task530_fold2_train.log 2>&1 &
 nohup mednextv1_train 3d_fullres nnUNetTrainerV2_Double_RWKV_MedNeXt 530 0 -p nnUNetPlansv2.1_trgSp_1x1x1_rwkv > ./log/le_db_rwkv_task530_fold0_train.log 2>&1 &
 nohup mednextv1_train 3d_fullres nnUNetTrainerV2_Double_RWKV_MedNeXt 530 1 -p nnUNetPlansv2.1_trgSp_1x1x1_rwkv > ./log/le_db_rwkv_task530_fold1_b4c16_train.log 2>&1 &
 
@@ -49,5 +49,14 @@ nvidia-smi
 nvidia-smi -q -d PIDS
 fuser -v /dev/nvidia*
 pkill -f mednextv1_train
-/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task505_EsoTJ_10pct/nnUNetPlansv2.1_trgSp_1x1x1_plans_3D.pkl
 
+
+python visualize_fd_edge_and_ds.py \
+  --network 3d_fullres \
+  --network_trainer nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt \
+  --task 530 \
+  --fold 1 \
+  --plans_identifier nnUNetPlansv2.1_trgSp_1x1x1_rwkv \
+  --case_id ESO_TJ_60011222468 \
+  --data_root /home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task530_EsoTJ_30pct/nnUNetData_plans_v2.1_trgSp_1x1x1 \
+  --output_dir fd_edge_vis
