@@ -18,7 +18,10 @@ from nnunet_mednext.training.loss_functions.deep_supervision import (
 class Double_CCA_UPSam_fd_loss_RWKV_MedNeXt(SegmentationNetwork):
     """SegmentationNetwork wrapper around Double_CCA_UPSam_fd_loss_RWKV_MedNeXt_Orig.
 
-    forward 返回 (seg_outputs, edge_logit_f0, edge_logit_f1)。
+    forward 统一返回底层网络的 (seg_outputs, edge_logit_f0, edge_logit_f1)，
+    供训练与验证阶段的 MultipleOutputWithEdgeLoss 使用。
+
+    推理/预测阶段若只需要分割 logits，可调用 inference_logits。
     """
 
     def __init__(self, *args, **kwargs):
@@ -33,22 +36,21 @@ class Double_CCA_UPSam_fd_loss_RWKV_MedNeXt(SegmentationNetwork):
         self.do_ds = getattr(self.net, "do_ds", False)
 
     def forward(self, x):
-        out = self.net(x)
-        # 训练阶段：loss 期望看到完整的 (seg_outputs, edge_f0, edge_f1)
-        if self.training:
-            return out
+        """训练 / 验证阶段都返回完整三元组，供 MultipleOutputWithEdgeLoss 使用。"""
+        return self.net(x)
 
-        # 推理/验证阶段：nnUNet 通常设置 network.do_ds = False，但为安全起见，
-        # 若仍返回 (seg_outputs, edge_f0, edge_f1)，只取 seg_outputs 的主分支供 softmax 使用
-        if isinstance(out, (list, tuple)):
-            # 第一层：解包 (seg_outputs, edge_f0, edge_f1)
-            seg_outputs = out[0]
-            # 第二层：seg_outputs 也可能是 [x, x_ds1, ...]，继续取最高分辨率主输出 x
-            if isinstance(seg_outputs, (list, tuple)):
+    def inference_logits(self, x):
+        """仅用于推理/可视化等需要分割 logits 的场景。
+
+        - 若底层 net 返回 (seg_outputs, edge_logit_f0, edge_logit_f1)，只取最高分辨率 seg logits；
+        - 若底层 net 已经返回单个 logits tensor，则直接返回。
+        """
+        out = self.net(x)
+        if isinstance(out, (list, tuple)) and len(out) == 3:
+            seg_outputs, edge_logit_f0, edge_logit_f1 = out
+            if isinstance(seg_outputs, (list, tuple)) and len(seg_outputs) > 0:
                 return seg_outputs[0]
             return seg_outputs
-
-        # 如果底层网络已经直接返回单个 logits tensor，则直接透传
         return out
 
 
