@@ -107,6 +107,17 @@ def _extract_case_data(data_root: str, case_id: str, dataset_directory: str) -> 
 
     gt_img = nib.load(gt_path)
     gt_arr = gt_img.get_fdata()
+
+    # === 关键：将 NIfTI 标签从 [X, Y, Z] 调整到与预处理 .npy 一致的 [Z, Y, X] 坐标系，并可选做左右翻转 ===
+    if gt_arr.ndim != 3:
+        raise RuntimeError(f"Unexpected GT ndim {gt_arr.ndim} for {gt_path}, expected 3D array")
+
+    # 步骤 1：轴重排，假设 NIfTI 为 (X, Y, Z)，转为 (Z, Y, X)
+    gt_arr = np.transpose(gt_arr, (2, 1, 0))
+
+    # 步骤 2（可选）：如果发现仍然左右颠倒，可以取消下一行注释做左右翻转（axis=2 对应 X 方向）
+    # gt_arr = np.flip(gt_arr, axis=2)
+
     gt = gt_arr.astype(np.int16)
     if gt.ndim == 4 and gt.shape[-1] == 1:
         gt = gt[..., 0]
