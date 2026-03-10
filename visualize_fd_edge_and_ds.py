@@ -528,7 +528,7 @@ def visualize_frequency_from_arrays(
     fig2.savefig(os.path.join(output_dir, f"{case_id}_fd_band_energy.png"), dpi=300)
     plt.close(fig2)
 
-    # additionally visualize band volumes as 2D slices
+    # 各频带空间切片
     z = img_vol.shape[0] // 2
     fig3, axes3 = plt.subplots(1, len(band_volumes) + 1, figsize=(4 * (len(band_volumes) + 1), 4))
     axes3[0].imshow(img_vol[z], cmap="gray")
@@ -545,6 +545,57 @@ def visualize_frequency_from_arrays(
     plt.tight_layout()
     fig3.savefig(os.path.join(output_dir, f"{case_id}_fd_band_slices.png"), dpi=300)
     plt.close(fig3)
+
+    # 3) 显式低频 vs 高频对比图（基于 band_volumes 的第一个和最后一个频带）
+    if len(band_volumes) >= 2:
+        low_vol = band_volumes[0]
+        high_vol = band_volumes[-1]
+
+        def _norm_slice(sl: np.ndarray) -> np.ndarray:
+            vmin, vmax = np.percentile(sl, [1, 99])
+            sl = np.clip(sl, vmin, vmax)
+            if vmax > vmin:
+                sl = (sl - vmin) / (vmax - vmin)
+            return sl
+
+        low_slice_n = _norm_slice(low_vol[z])
+        high_slice_n = _norm_slice(high_vol[z])
+
+        fig4, axes4 = plt.subplots(1, 3, figsize=(12, 4))
+        axes4[0].imshow(img_vol[z], cmap="gray")
+        axes4[0].set_title(f"Input (z={z})")
+        axes4[0].axis("off")
+
+        axes4[1].imshow(low_slice_n, cmap="gray")
+        axes4[1].set_title("Low-frequency recon")
+        axes4[1].axis("off")
+
+        axes4[2].imshow(high_slice_n, cmap="gray")
+        axes4[2].set_title("High-frequency recon")
+        axes4[2].axis("off")
+
+        plt.tight_layout()
+        fig4.savefig(os.path.join(output_dir, f"{case_id}_fd_low_vs_high.png"), dpi=300)
+        plt.close(fig4)
+
+
+def _load_npy_or_nii(path: str) -> np.ndarray:
+    """根据扩展名加载 .npy 或 .nii(.gz) 文件，返回 numpy 数组。
+
+    - .npy: 直接 np.load
+    - .nii/.nii.gz: 使用 nibabel 加载并返回 get_fdata()
+    """
+    import nibabel as nib
+
+    if path is None:
+        raise ValueError("Path is None")
+    ext = os.path.splitext(path)[1].lower()
+    if ext == ".npy":
+        return np.load(path)
+    if ext in (".nii", ".gz") or path.endswith(".nii.gz"):
+        img = nib.load(path)
+        return img.get_fdata()
+    raise ValueError(f"Unsupported file extension for {path}")
 
 
 def main():
