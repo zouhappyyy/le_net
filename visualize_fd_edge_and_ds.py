@@ -433,6 +433,55 @@ def _compute_band_energy_3d_with_volumes(
     return band_centers, energy_norm, band_volumes
 
 
+def _fbm_like_decompose_3d(vol: np.ndarray, k_list: Tuple[int, ...] = (2, 4, 8)) -> Tuple[np.ndarray, np.ndarray]:
+    """Replicate the core FBM frequency decomposition logic on a single-channel 3D volume.
+
+    This mirrors FrequencyBandModulation3D.forward (rfftn + cached_masks + low/high split):
+      - x_fft: rFFTN of the volume
+      - for each k in k_list:
+          mask: freq_dist < 0.5/k (low-frequency mask in rFFT grid)
+          low_part  = irFFTN(x_fft * mask)
+          high_part = pre_x - low_part
+          pre_x     = low_part
+          high_acc += high_part
+
+    Args:
+        vol: np.ndarray of shape [D, H, W]
+        k_list: tuple of integers, same semantics as FBM.k_list
+
+    Returns:
+        low_cum: final low-frequency accumulation (pre_x), shape [D,H,W]
+        high_acc: accumulated high-frequency residual, shape [D,H,W]
+    """
+    assert vol.ndim == 3, f"Expected 3D volume, got shape {vol.shape}"
+    D, H, W = vol.shape
+    x = vol.astype(np.float32)
+    x = x - x.mean()
+
+    # rFFTN over (D,H,W), last dim uses rfftfreq like FBM (use_rfft=True)
+    x_fft = np.fft.rfftn(x, s=(D, H, W), axes=(0, 1, 2), norm='ortho')
+
+    # Build frequency grid consistent with get_fft3freq(..., use_rfft=True)
+    kz = np.fft.fftfreq(D)
+    ky = np.fft.fftfreq(H)
+    kx = np.fft.rfftfreq(W)
+    gz, gy, gx = np.meshgrid(kz, ky, kx, indexing='ij')
+    freq_dist = np.sqrt(gz ** 2 + gy ** 2 + gx ** 2)
+
+    pre_x = x.copy()
+    high_acc = np.zeros_like(x, dtype=np.float32)
+
+    for k in k_list:
+        # Same mask rule as FBM._precompute_masks: freq_dist < 0.5 / k
+        mask = (freq_dist < (0.5 / k + 1e-8)).astype(np.float32)
+        low_part = np.fft.irfftn(x_fft * mask, s=(D, H, W), axes=(0, 1, 2), norm='ortho').astype(np.float32)
+        high_part = pre_x - low_part
+        pre_x = low_part
+        high_acc += high_part
+
+    return pre_x, high_acc
+
+
 def visualize_frequency_from_arrays(
     output_dir: str,
     case_id: str,
@@ -443,13 +492,15 @@ def visualize_frequency_from_arrays(
 ):
     """Frequency-domain visualization for a 3D volume.
 
-    Compared to the previous version, this now accepts two edge supervision
-    volumes (edge_f0, edge_f1) which may be at different resolutions. For
-    each, we choose its own central slice for spatial overlays.
+    - Shows spatial slice + segmentation/edges overlays.
+    - Shows standard FFT magnitude spectrum (2D) of the slice.
+    - Shows 3D band energy and per-band reconstructions from vanilla radius-based bins.
+    - Additionally shows FBM-like low/high decomposition (matching FDConv FrequencyBandModulation3D
+      logic: rFFTN + masks based on freq_dist < 0.5/k for given k_list).
     """
     os.makedirs(output_dir, exist_ok=True)
 
-    # 规范 image 为 [D,H,W] 和选择一层切片
+    # Normalize image into [D,H,W] + pick one slice
     if image.ndim == 4:
         C, D, H, W = image.shape
         z_img = D // 2
@@ -464,7 +515,7 @@ def visualize_frequency_from_arrays(
     else:
         raise ValueError(f"image ndim must be 3 or 4, got {image.shape}")
 
-    # 1) 空间切片 + 对应频谱，优先显示 seg，然后显示 f0/f1 的一层
+    # 1) Spatial slice + FFT magnitude + optional seg/edges
     spec = _compute_2d_fft_spectrum(img_slice)
 
     fig, axes = plt.subplots(1, 4, figsize=(20, 4))
@@ -473,7 +524,7 @@ def visualize_frequency_from_arrays(
     axes[0].set_title(f"Input z={z_img}")
     axes[0].axis("off")
 
-    # Seg 覆盖
+    # Seg overlay
     if seg is not None:
         seg_3d = seg[0] if (seg.ndim == 4 and seg.shape[0] == 1) else seg
         z_seg = min(z_img, seg_3d.shape[0] - 1)
@@ -485,7 +536,7 @@ def visualize_frequency_from_arrays(
     else:
         axes[1].axis("off")
 
-    # f0 边界覆盖
+    # Edge f0 overlay
     if edge_f0 is not None:
         D0 = edge_f0.shape[0]
         z0 = min(z_img, D0 - 1)
@@ -498,7 +549,7 @@ def visualize_frequency_from_arrays(
     else:
         axes[2].axis("off")
 
-    # f1 边界覆盖
+    # Edge f1 overlay
     if edge_f1 is not None:
         D1 = edge_f1.shape[0]
         z1 = min(z_img, D1 - 1)
@@ -512,23 +563,31 @@ def visualize_frequency_from_arrays(
         axes[3].axis("off")
 
     plt.tight_layout()
-    fig.savefig(os.path.join(output_dir, f"{case_id}_fd_spatial_and_edges_and_spectrum.png"), dpi=300)
+    fig.savefig(os.path.join(output_dir, f"{case_id}_fd_spatial_and_edges.png"), dpi=300)
     plt.close(fig)
 
-    # 2) 3D 频带能量 + 各频带切片（仍使用 img_vol）
+    # Also save pure FFT magnitude (for clarity)
+    fig_mag, ax_mag = plt.subplots(1, 1, figsize=(5, 4))
+    ax_mag.imshow(spec, cmap="magma")
+    ax_mag.set_title("FFT magnitude (log)")
+    ax_mag.axis("off")
+    plt.tight_layout()
+    fig_mag.savefig(os.path.join(output_dir, f"{case_id}_fd_fft_magnitude_only.png"), dpi=300)
+    plt.close(fig_mag)
+
+    # 2) 3D band energy + vanilla radius-binned band slices
     bands, energy, band_volumes = _compute_band_energy_3d_with_volumes(img_vol)
     fig2, ax2 = plt.subplots(1, 1, figsize=(6, 4))
     labels = [f"B{i+1}" for i in range(len(energy))]
     ax2.bar(labels, energy)
     ax2.set_ylabel("Energy ratio")
-    ax2.set_title("3D frequency band energy")
+    ax2.set_title("3D frequency band energy (radial bins)")
     for i, v in enumerate(energy):
         ax2.text(i, v + 0.01, f"{v:.2f}", ha="center", va="bottom", fontsize=8)
     plt.tight_layout()
     fig2.savefig(os.path.join(output_dir, f"{case_id}_fd_band_energy.png"), dpi=300)
     plt.close(fig2)
 
-    # 各频带空间切片
     z = img_vol.shape[0] // 2
     fig3, axes3 = plt.subplots(1, len(band_volumes) + 1, figsize=(4 * (len(band_volumes) + 1), 4))
     axes3[0].imshow(img_vol[z], cmap="gray")
@@ -546,10 +605,11 @@ def visualize_frequency_from_arrays(
     fig3.savefig(os.path.join(output_dir, f"{case_id}_fd_band_slices.png"), dpi=300)
     plt.close(fig3)
 
-    # 3) 显式低频 vs 高频对比图（基于 band_volumes 的第一个和最后一个频带）
-    if len(band_volumes) >= 2:
-        low_vol = band_volumes[0]
-        high_vol = band_volumes[-1]
+    # 3) FBM-like low/high decomposition (matching FDConv.FBM logic on img_vol)
+    try:
+        low_cum, high_acc = _fbm_like_decompose_3d(img_vol, k_list=(2, 4, 8))
+        low_slice = low_cum[z]
+        high_slice = high_acc[z]
 
         def _norm_slice(sl: np.ndarray) -> np.ndarray:
             vmin, vmax = np.percentile(sl, [1, 99])
@@ -558,8 +618,8 @@ def visualize_frequency_from_arrays(
                 sl = (sl - vmin) / (vmax - vmin)
             return sl
 
-        low_slice_n = _norm_slice(low_vol[z])
-        high_slice_n = _norm_slice(high_vol[z])
+        low_slice_n = _norm_slice(low_slice)
+        high_slice_n = _norm_slice(high_slice)
 
         fig4, axes4 = plt.subplots(1, 3, figsize=(12, 4))
         axes4[0].imshow(img_vol[z], cmap="gray")
@@ -567,16 +627,19 @@ def visualize_frequency_from_arrays(
         axes4[0].axis("off")
 
         axes4[1].imshow(low_slice_n, cmap="gray")
-        axes4[1].set_title("Low-frequency recon")
+        axes4[1].set_title("FBM-like Low")
         axes4[1].axis("off")
 
         axes4[2].imshow(high_slice_n, cmap="gray")
-        axes4[2].set_title("High-frequency recon")
+        axes4[2].set_title("FBM-like High (acc)")
         axes4[2].axis("off")
 
         plt.tight_layout()
-        fig4.savefig(os.path.join(output_dir, f"{case_id}_fd_low_vs_high.png"), dpi=300)
+        fig4.savefig(os.path.join(output_dir, f"{case_id}_fd_fbm_low_vs_high.png"), dpi=300)
         plt.close(fig4)
+    except Exception as e:
+        # Fail-safe: don't crash visualization if FBM-like decomposition fails for some edge case
+        print(f"[WARN] FBM-like frequency decomposition failed for {case_id}: {e}")
 
 
 def _load_npy_or_nii(path: str) -> np.ndarray:
