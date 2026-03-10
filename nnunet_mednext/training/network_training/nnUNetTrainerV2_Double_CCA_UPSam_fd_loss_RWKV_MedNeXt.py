@@ -73,7 +73,7 @@ class nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt(nnUNetTrainerV2_Opti
 
     def initialize_network(self):
         use_amp = getattr(self, "use_amp", False)
-        base_channels = 8
+        base_channels = 16
 
         self.network = Double_CCA_UPSam_fd_loss_RWKV_MedNeXt(
             in_channels=self.num_input_channels,
