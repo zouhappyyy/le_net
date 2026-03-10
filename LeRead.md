@@ -76,3 +76,10 @@ python visualize_fd_edge_and_ds.py run_model \
   --output_dir fd_edge_vis_flip \
   --patch_size 64 \
   --do_fd_vis
+
+
+
+cd /home/fangzheng/zoule/mednext
+
+chmod +x batch_vis.sh
+./batch_vis.sh
