@@ -1,6 +1,6 @@
 import os
 import argparse
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 import numpy as np
 import torch
@@ -157,20 +157,14 @@ def run_inference_on_case(
     - 边界预测 edge_f0
     - GT 标签 (gt)
     - 原始预处理图像 (image)
+
+    注意：不再对体数据做 64^3 的中心裁剪，保持与预处理输出一致的原始体素尺寸。
     """
     # 直接从用户指定的预处理目录中读取数据 + 从 gt_segmentations 读取 GT
     data_np, seg_np = _extract_case_data(data_root, case_id, trainer.dataset_directory)
 
-    # 将 128^3 裁剪为与训练一致的 patch size 64^3，避免 RWKV 的 T_MAX 限制
-    C, D, H, W = data_np.shape
-    patch_size = 64
-    half = patch_size // 2
-    cz, cy, cx = D // 2, H // 2, W // 2
-    z1, z2 = max(0, cz - half), min(D, cz + half)
-    y1, y2 = max(0, cy - half), min(H, cy + half)
-    x1, x2 = max(0, cx - half), min(W, cx + half)
-    data_np = data_np[:, z1:z2, y1:y2, x1:x2]
-    seg_np = seg_np[:, z1:z2, y1:y2, x1:x2]
+    # 不再裁剪到固定 patch size，直接用完整体数据
+    # data_np: [C, D, H, W], seg_np: [1, D, H, W]
 
     # 转为 torch tensor 并增加 batch 维度: [1, C, D, H, W]
     data_t = maybe_to_torch(data_np[None])
@@ -300,29 +294,229 @@ def save_visualizations(
         plt.close(fig_ds)
 
 
+def _compute_2d_fft_spectrum(feat_2d: np.ndarray) -> np.ndarray:
+    """对 2D 特征做 FFT 并返回对数幅度谱 (归一化到 [0, 1])。
+
+    feat_2d: [H, W]，可以是原图切片或高频特征切片。
+    """
+    # 防 NaN：转 float32，并去掉非常大的值
+    x = feat_2d.astype(np.float32)
+    # 减去均值可以让 DC 分量更有对比度
+    x = x - x.mean()
+    F = np.fft.fftshift(np.fft.fft2(x))
+    mag = np.abs(F)
+    log_mag = np.log1p(mag)
+    # 归一化到 [0, 1]
+    vmin, vmax = np.percentile(log_mag, [1, 99])
+    log_mag = np.clip(log_mag, vmin, vmax)
+    log_mag = (log_mag - vmin) / (vmax - vmin + 1e-8)
+    return log_mag
+
+
+def _compute_band_energy_3d(feat_3d: np.ndarray, num_bins: int = 3) -> Tuple[np.ndarray, np.ndarray]:
+    """对 3D 特征做 3D FFT，并按频率半径划分若干频带统计能量。
+
+    返回 (band_centers, energy_norm)，其中 energy_norm 已按总能量归一化。
+    """
+    x = feat_3d.astype(np.float32)
+    x = x - x.mean()
+    F = np.fft.fftn(x)
+    mag2 = np.abs(F) ** 2  # 能量
+
+    D, H, W = x.shape
+    kz = np.fft.fftfreq(D)
+    ky = np.fft.fftfreq(H)
+    kx = np.fft.fftfreq(W)
+    gz, gy, gx = np.meshgrid(kz, ky, kx, indexing="ij")
+    radius = np.sqrt(gz ** 2 + gy ** 2 + gx ** 2)
+
+    r_flat = radius.reshape(-1)
+    e_flat = mag2.reshape(-1)
+
+    r_max = r_flat.max() + 1e-8
+    bins = np.linspace(0.0, r_max, num_bins + 1)
+    energy = np.zeros(num_bins, dtype=np.float64)
+    for i in range(num_bins):
+        mask = (r_flat >= bins[i]) & (r_flat < bins[i + 1])
+        if np.any(mask):
+            energy[i] = e_flat[mask].sum()
+
+    total = energy.sum() + 1e-8
+    energy_norm = energy / total
+    band_centers = 0.5 * (bins[:-1] + bins[1:])
+    return band_centers, energy_norm
+
+
+def visualize_frequency_from_arrays(
+    output_dir: str,
+    case_id: str,
+    image: np.ndarray,
+    seg: Optional[np.ndarray] = None,
+    edge: Optional[np.ndarray] = None,
+):
+    """在不运行模型的情况下，对已有 3D 图像/标签/边缘进行频域可视化。
+
+    参数：
+        image: [C,D,H,W] 或 [D,H,W]，原始预处理图像（至少一通道）
+        seg:   [D,H,W] 或 None，分割标签（可选）
+        edge:  [D,H,W] 或 None，边界概率/二值图（可选）
+    生成：
+        - {case_id}_fd_spatial_and_spectrum.png：空间切片 + 频谱
+        - {case_id}_fd_band_energy.png：频带能量分布
+    """
+    os.makedirs(output_dir, exist_ok=True)
+
+    if image.ndim == 4:
+        # [C,D,H,W]
+        C, D, H, W = image.shape
+        z = D // 2
+        c = 0
+        img_slice = image[c, z]
+        img_vol = image[c]
+    elif image.ndim == 3:
+        D, H, W = image.shape
+        z = D // 2
+        img_slice = image[z]
+        img_vol = image
+    else:
+        raise ValueError(f"image ndim must be 3 or 4, got {image.shape}")
+
+    # 1) 空间切片 + 对应频谱
+    spec = _compute_2d_fft_spectrum(img_slice)
+
+    fig, axes = plt.subplots(1, 3, figsize=(15, 4))
+
+    axes[0].imshow(img_slice, cmap="gray")
+    axes[0].set_title(f"Input slice z={z}")
+    axes[0].axis("off")
+
+    if seg is not None:
+        if seg.ndim == 4 and seg.shape[0] == 1:
+            seg_3d = seg[0]
+        else:
+            seg_3d = seg
+        if seg_3d.shape[0] > z:
+            seg_slice = seg_3d[z]
+        else:
+            seg_slice = seg_3d[seg_3d.shape[0] // 2]
+        axes[1].imshow(img_slice, cmap="gray")
+        axes[1].imshow(seg_slice, alpha=0.5)
+        axes[1].set_title("Segmentation (optional)")
+        axes[1].axis("off")
+    elif edge is not None:
+        if edge.shape[0] > z:
+            edge_slice = edge[z]
+        else:
+            edge_slice = edge[edge.shape[0] // 2]
+        axes[1].imshow(img_slice, cmap="gray")
+        im = axes[1].imshow(edge_slice, cmap="jet", alpha=0.5)
+        axes[1].set_title("Edge (optional)")
+        axes[1].axis("off")
+        fig.colorbar(im, ax=axes[1], fraction=0.046, pad=0.04)
+    else:
+        axes[1].axis("off")
+
+    axes[2].imshow(spec, cmap="magma")
+    axes[2].set_title("FFT magnitude (log, norm)")
+    axes[2].axis("off")
+
+    plt.tight_layout()
+    fig.savefig(os.path.join(output_dir, f"{case_id}_fd_spatial_and_spectrum.png"), dpi=300)
+    plt.close(fig)
+
+    # 2) 3D 频带能量分布
+    bands, energy = _compute_band_energy_3d(img_vol)
+    fig2, ax2 = plt.subplots(1, 1, figsize=(6, 4))
+    labels = [f"B{i+1}" for i in range(len(energy))]
+    ax2.bar(labels, energy)
+    ax2.set_ylabel("Energy ratio")
+    ax2.set_title("3D frequency band energy")
+    for i, v in enumerate(energy):
+        ax2.text(i, v + 0.01, f"{v:.2f}", ha="center", va="bottom", fontsize=8)
+    plt.tight_layout()
+    fig2.savefig(os.path.join(output_dir, f"{case_id}_fd_band_energy.png"), dpi=300)
+    plt.close(fig2)
+
+
+def _load_npy_or_nii(path: str) -> np.ndarray:
+    """根据扩展名加载 .npy 或 .nii(.gz) 文件，返回 numpy 数组。
+
+    - .npy: 直接 np.load
+    - .nii/.nii.gz: 使用 nibabel 加载并返回 get_fdata()
+    """
+    ext = os.path.splitext(path)[1].lower()
+    if ext == ".npy":
+        return np.load(path)
+    if ext in (".nii", ".gz") or path.endswith(".nii.gz"):
+        import nibabel as nib
+
+        img = nib.load(path)
+        return img.get_fdata()
+    raise ValueError(f"Unsupported file extension for {path}")
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--plans_file", type=str, required=True, help="Path to your custom plans.pkl (e.g. nnUNetPlansv2.1_trgSp_1x1x1_rwkv_plans_3D.pkl)")
-    parser.add_argument("--fold", type=int, default=0, help="Fold index")
-    parser.add_argument("--output_folder", type=str, required=True, help="Trained output folder used during training (without /fold_X)")
-    parser.add_argument("--case_id", type=str, required=True, help="Case id (e.g. 'ESO_TJ_60011222468')")
-    parser.add_argument("--output_dir", type=str, default="fd_edge_vis", help="Directory to save visualizations")
-    parser.add_argument("--data_root", type=str, required=True, help="Root folder of preprocessed data for this Task/stage (e.g. /home/.../Task530_.../nnUNetData_plans_v2.1_trgSp_1x1x1_stage0)")
+    subparsers = parser.add_subparsers(dest="mode", required=False)
+
+    # ---- 模式 1：跑模型 + 可视化（现有功能，保留） ----
+    p_run = subparsers.add_parser("run_model", help="Run network inference and visualize seg/edge (original mode)")
+    p_run.add_argument("--plans_file", type=str, required=True, help="Path to your custom plans.pkl (e.g. nnUNetPlansv2.1_trgSp_1x1x1_rwkv_plans_3D.pkl)")
+    p_run.add_argument("--fold", type=int, default=0, help="Fold index")
+    p_run.add_argument("--output_folder", type=str, required=True, help="Trained output folder used during training (without /fold_X)")
+    p_run.add_argument("--case_id", type=str, required=True, help="Case id (e.g. 'ESO_TJ_60011222468')")
+    p_run.add_argument("--output_dir", type=str, default="fd_edge_vis", help="Directory to save visualizations")
+    p_run.add_argument("--data_root", type=str, required=True, help="Root folder of preprocessed data for this Task/stage (e.g. /home/.../Task530_.../nnUNetData_plans_v2.1_trgSp_1x1x1_stage0)")
+
+    # ---- 模式 2：纯频域可视化，不跑模型 ----
+    p_fd = subparsers.add_parser("fd_only", help="Visualize frequency decomposition from existing arrays, without running the model")
+    p_fd.add_argument("--image", type=str, required=True, help="Path to image volume (.npy or .nii.gz), shape [C,D,H,W] or [D,H,W]")
+    p_fd.add_argument("--seg", type=str, default=None, help="Optional segmentation label (.npy or .nii.gz), shape [D,H,W]")
+    p_fd.add_argument("--edge", type=str, default=None, help="Optional edge/probability volume (.npy or .nii.gz), shape [D,H,W]")
+    p_fd.add_argument("--case_id", type=str, default="case", help="Case id used in output file names")
+    p_fd.add_argument("--output_dir", type=str, default="fd_vis_only", help="Directory to save frequency visualizations")
+
     args = parser.parse_args()
 
-    trainer = get_trainer(args.plans_file, args.fold, args.output_folder)
+    if args.mode == "fd_only":
+        # 纯后处理频域可视化
+        img_arr = _load_npy_or_nii(args.image)
+        # 若是 (D,H,W) 的 NIfTI，直接使用；若是 (C,D,H,W) 的 npy 也可
+        seg_arr = _load_npy_or_nii(args.seg) if args.seg is not None else None
+        edge_arr = _load_npy_or_nii(args.edge) if args.edge is not None else None
 
-    seg_pred, ds_preds, edge_pred, gt, image = run_inference_on_case(trainer, args.case_id, args.data_root)
+        # 简单规范到 [C,D,H,W] 或 [D,H,W]
+        if img_arr.ndim == 3:
+            image = img_arr.astype(np.float32)
+        elif img_arr.ndim == 4:
+            image = img_arr.astype(np.float32)
+        else:
+            raise RuntimeError(f"Unsupported image shape {img_arr.shape}, expected 3D or 4D volume")
 
-    save_visualizations(
-        args.output_dir,
-        args.case_id,
-        image,
-        seg_pred,
-        ds_preds,
-        edge_pred,
-        gt,
-    )
+        if seg_arr is not None and seg_arr.ndim > 3:
+            # 通常 NIfTI seg 为 [X,Y,Z]，这里不做轴重排，由用户保证一致性；仅去掉多余通道
+            seg_arr = np.squeeze(seg_arr)
+        if edge_arr is not None and edge_arr.ndim > 3:
+            edge_arr = np.squeeze(edge_arr)
+
+        visualize_frequency_from_arrays(args.output_dir, args.case_id, image, seg_arr, edge_arr)
+        return
+
+    # 默认或显式 run_model 模式：保持原逻辑
+    if args.mode is None or args.mode == "run_model":
+        trainer = get_trainer(args.plans_file, args.fold, args.output_folder)
+
+        seg_pred, ds_preds, edge_pred, gt, image = run_inference_on_case(trainer, args.case_id, args.data_root)
+
+        save_visualizations(
+            args.output_dir,
+            args.case_id,
+            image,
+            seg_pred,
+            ds_preds,
+            edge_pred,
+            gt,
+        )
 
 
 if __name__ == "__main__":

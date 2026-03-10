@@ -62,7 +62,9 @@ def visualize_fdconv_highfreq_3d(
     - 构造 FrequencyBandModulation3D
     - 用输入特征做一次前向，获取 high_acc（高频累积）
     - 从 high_acc 和 x 反推低频部分：low_final = x - high_acc
-    - 按深度中间切片，将原始特征 / 低频 / 高频图保存出来
+    - 2D: 按深度中间切片，将原始特征 / 低频 / 高频图保存出来
+    - 3D: 对 Input/Low/High 体分别做三个方向的最大强度投影（axial/coronal/sagittal），
+           得到 3x3 子图的“伪 3D”可视化
     """
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -101,18 +103,18 @@ def visualize_fdconv_highfreq_3d(
     low_final = x - high_acc
 
     # 聚合通道：这里简单取通道均值，得到 [B, D, H, W]
-    x_mean = x.mean(dim=1)         # 原始
+    x_mean = x.mean(dim=1)            # 原始
     low_mean = low_final.mean(dim=1)  # 低频
     high_mean = high_acc.mean(dim=1)  # 高频
 
-    # 选取中间深度切片
+    # -------- 2D: 中间切片可视化（保留原逻辑） --------
     B, _, D, H, W = x.shape
     mid = D // 2
     x_slice = x_mean[0, mid].detach().cpu()
     low_slice = low_mean[0, mid].detach().cpu()
     high_slice = high_mean[0, mid].detach().cpu()
 
-    def _norm_img(t):
+    def _norm_img(t: torch.Tensor) -> torch.Tensor:
         t_min, t_max = float(t.min()), float(t.max())
         if t_max > t_min:
             t = (t - t_min) / (t_max - t_min)
@@ -138,14 +140,70 @@ def visualize_fdconv_highfreq_3d(
     axes[2].axis("off")
 
     plt.tight_layout()
-    # 如果有 case_id，则在文件名中带上，便于区分
     if data_root is not None and case_id is not None:
         png_path = f"{save_path_prefix}_{case_id}_slice.png"
     else:
         png_path = f"{save_path_prefix}_slice.png"
     fig.savefig(png_path, dpi=200)
     plt.close(fig)
-    print(f"Saved FDConv high-frequency 3D visualization to: {png_path}")
+    print(f"Saved FDConv high-frequency 2D slice visualization to: {png_path}")
+
+    # -------- 3D: 多视角最大强度投影 (MIP) 可视化 --------
+    # 使用 B=1 的体：vol_in/vol_low/vol_high 形状为 [D, H, W]
+    vol_in = x_mean[0].detach().cpu().numpy()
+    vol_low = low_mean[0].detach().cpu().numpy()
+    vol_high = high_mean[0].detach().cpu().numpy()
+
+    def _mip_views(vol: np.ndarray):
+        """计算 3 个方向的 MIP：axial(Z), coronal(Y), sagittal(X)。"""
+        # vol: [D, H, W]
+        axial = vol.max(axis=0)    # [H, W]
+        coronal = vol.max(axis=1)  # [D, W]
+        sagittal = vol.max(axis=2) # [D, H]
+        return axial, coronal, sagittal
+
+    def _norm_np(arr: np.ndarray) -> np.ndarray:
+        arr = arr.astype(np.float32)
+        v_min, v_max = float(arr.min()), float(arr.max())
+        if v_max > v_min:
+            arr = (arr - v_min) / (v_max - v_min)
+        else:
+            arr = np.zeros_like(arr)
+        return arr
+
+    in_ax, in_cor, in_sag = _mip_views(vol_in)
+    low_ax, low_cor, low_sag = _mip_views(vol_low)
+    high_ax, high_cor, high_sag = _mip_views(vol_high)
+
+    in_ax, in_cor, in_sag = map(_norm_np, (in_ax, in_cor, in_sag))
+    low_ax, low_cor, low_sag = map(_norm_np, (low_ax, low_cor, low_sag))
+    high_ax, high_cor, high_sag = map(_norm_np, (high_ax, high_cor, high_sag))
+
+    fig3d, axes3d = plt.subplots(3, 3, figsize=(12, 12))
+    # 第 1 行：Input
+    axes3d[0, 0].imshow(in_ax, cmap="gray");     axes3d[0, 0].set_title("Input - axial")
+    axes3d[0, 1].imshow(in_cor, cmap="gray");    axes3d[0, 1].set_title("Input - coronal")
+    axes3d[0, 2].imshow(in_sag, cmap="gray");    axes3d[0, 2].set_title("Input - sagittal")
+    # 第 2 行：Low
+    axes3d[1, 0].imshow(low_ax, cmap="gray");    axes3d[1, 0].set_title("Low - axial")
+    axes3d[1, 1].imshow(low_cor, cmap="gray");   axes3d[1, 1].set_title("Low - coronal")
+    axes3d[1, 2].imshow(low_sag, cmap="gray");   axes3d[1, 2].set_title("Low - sagittal")
+    # 第 3 行：High
+    axes3d[2, 0].imshow(high_ax, cmap="gray");   axes3d[2, 0].set_title("High - axial")
+    axes3d[2, 1].imshow(high_cor, cmap="gray");  axes3d[2, 1].set_title("High - coronal")
+    axes3d[2, 2].imshow(high_sag, cmap="gray");  axes3d[2, 2].set_title("High - sagittal")
+
+    for ax in axes3d.ravel():
+        ax.axis("off")
+
+    plt.tight_layout()
+    if data_root is not None and case_id is not None:
+        png_path_3d = f"{save_path_prefix}_{case_id}_3d_mip.png"
+    else:
+        png_path_3d = f"{save_path_prefix}_3d_mip.png"
+    fig3d.savefig(png_path_3d, dpi=200)
+    plt.close(fig3d)
+    print(f"Saved FDConv high-frequency 3D MIP visualization to: {png_path_3d}")
 
 
 def _build_argparser():
@@ -182,3 +240,9 @@ if __name__ == "__main__":
         channel=args.channel,
     )
 
+#
+# python visualize_fdconv_highfreq.py \
+#   --data_root /home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task530_EsoTJ_30pct/nnUNetData_plans_v2.1_trgSp_1x1x1_stage0 \
+#   --case_id ESO_TJ_60011222468 \
+#   --channel 0 \
+#   --save_prefix fdconv_highfreq_real
