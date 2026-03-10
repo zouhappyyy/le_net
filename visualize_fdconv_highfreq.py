@@ -182,9 +182,3 @@ if __name__ == "__main__":
         channel=args.channel,
     )
 
-#
-# python visualize_fdconv_highfreq.py \
-#   --data_root /home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task530_EsoTJ_30pct/nnUNetData_plans_v2.1_trgSp_1x1x1_stage0 \
-#   --case_id ESO_TJ_60011222468 \
-#   --channel 0 \
-#   --save_prefix fdconv_highfreq_real

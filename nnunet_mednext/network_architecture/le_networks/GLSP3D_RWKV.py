@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 from timm.models.layers import DropPath
 from torch.utils.cpp_extension import load
-T_MAX = 4096
+T_MAX = 2097152
 inplace = True
 wkv_cuda = load(name="wkv", sources=["cuda/wkv_op.cpp", "cuda/wkv_cuda.cu"],
                 verbose=True, extra_cuda_cflags=['-res-usage', '--maxrregcount 60', '--use_fast_math', '-O3', '-Xptxas -O3', f'-DTmax={T_MAX}'])
