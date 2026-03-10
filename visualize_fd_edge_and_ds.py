@@ -46,6 +46,31 @@ def get_trainer(plans_file: str, fold: int, output_folder: str) -> nnUNetTrainer
     return trainer
 
 
+def _center_crop_3d_slices(shape_dhw: Tuple[int, int, int], patch_size: Tuple[int, int, int]) -> Tuple[slice, slice, slice]:
+    """Compute center crop slices for a 3D volume.
+
+    shape_dhw: (D, H, W) of the source volume.
+    patch_size: desired (pd, ph, pw). If any source dim < patch dim, we just
+        use the full source dim for that axis (i.e. no padding, only crop when larger).
+    Returns three slice objects (sd, sh, sw) that can be applied to [D,H,W].
+    """
+    d, h, w = shape_dhw
+    pd, ph, pw = patch_size
+
+    def _one_dim(center_len: int, target_len: int) -> slice:
+        if center_len <= target_len:
+            # smaller than or equal to patch: just take full range
+            return slice(0, center_len)
+        start = (center_len - target_len) // 2
+        end = start + target_len
+        return slice(start, end)
+
+    sd = _one_dim(d, pd)
+    sh = _one_dim(h, ph)
+    sw = _one_dim(w, pw)
+    return sd, sh, sw
+
+
 def _extract_case_data(data_root: str, case_id: str, dataset_directory: str) -> Tuple[np.ndarray, np.ndarray]:
     """从预处理数据目录和 gt_segmentations 中读取某病例的 data 和 seg.
 
@@ -150,23 +175,40 @@ def run_inference_on_case(
     trainer: nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt,
     case_id: str,
     data_root: str,
+    patch_size: Optional[Tuple[int, int, int]] = (64, 64, 64),
 ) -> Tuple[np.ndarray, List[np.ndarray], np.ndarray, np.ndarray, np.ndarray]:
-    """对单个病例前向推理，返回：
-    - 主分割预测 (seg_main_pred)
-    - 深监督各尺度预测列表 (ds_preds)
-    - 边界预测 edge_f0
-    - GT 标签 (gt)
-    - 原始预处理图像 (image)
+    """Run inference on a single case.
 
-    注意：不再对体数据做 64^3 的中心裁剪，保持与预处理输出一致的原始体素尺寸。
+    Returns (all with the *same* spatial size [D,H,W]):
+      - main segmentation prediction (seg_main_pred)
+      - list of deep supervision predictions (ds_preds)
+      - edge prediction (edge_f0)
+      - GT label (gt)
+      - image volume (image)
+
+    If `patch_size` is not None (default: (64,64,64)), the input volume and GT
+    are center-cropped to that patch before being fed into the network.
+    If the original volume is smaller along any axis, that axis is left
+    uncropped (no padding is introduced).
     """
-    # 直接从用户指定的预处理目录中读取数据 + 从 gt_segmentations 读取 GT
     data_np, seg_np = _extract_case_data(data_root, case_id, trainer.dataset_directory)
 
-    # 不再裁剪到固定 patch size，直接用完整体数据
-    # data_np: [C, D, H, W], seg_np: [1, D, H, W]
+    # seg_np: [1, D, H, W]
+    gt_full = seg_np[0].astype(np.uint8)
 
-    # 转为 torch tensor 并增加 batch 维度: [1, C, D, H, W]
+    # Optionally center-crop to a 3D patch (default 64^3)
+    if patch_size is not None:
+        if isinstance(patch_size, int):
+            patch_size = (patch_size, patch_size, patch_size)
+        assert len(patch_size) == 3, "patch_size must be a tuple of three ints or an int"
+        d, h, w = data_np.shape[1:]
+        sd, sh, sw = _center_crop_3d_slices((d, h, w), patch_size)
+        data_np = data_np[:, sd, sh, sw]
+        gt = gt_full[sd, sh, sw]
+    else:
+        gt = gt_full
+
+    # Convert to torch tensor and add batch dimension: [1, C, D, H, W]
     data_t = maybe_to_torch(data_np[None])
     if torch.cuda.is_available():
         data_t = data_t.cuda()
@@ -174,35 +216,27 @@ def run_inference_on_case(
     net = trainer.network
     net.eval()
 
-    # 使用底层 net.net 获取原始结构输出 (seg_outputs, edge_f0, edge_f1)
     with torch.no_grad():
         out = net.net(data_t)
 
     seg_outputs, edge_logit_f0, edge_logit_f1 = out
 
-    # 处理深监督 seg 输出
     if isinstance(seg_outputs, (list, tuple)):
         seg_logits_list = [s for s in seg_outputs]
     else:
         seg_logits_list = [seg_outputs]
 
-    # 主输出
-    main_logits = seg_logits_list[0]  # [1, C, D, H, W]
+    main_logits = seg_logits_list[0]
     main_probs = softmax_helper(main_logits)
-    main_pred = main_probs.argmax(1)[0].cpu().numpy().astype(np.uint8)  # [D, H, W]
+    main_pred = main_probs.argmax(1)[0].cpu().numpy().astype(np.uint8)
 
-    # 深监督其他尺度预测（若存在）
     ds_preds: List[np.ndarray] = []
     for lvl_logits in seg_logits_list[1:]:
         probs = softmax_helper(lvl_logits)
         pred = probs.argmax(1)[0].cpu().numpy().astype(np.uint8)
         ds_preds.append(pred)
 
-    # 边界预测 f0
-    edge_prob_f0 = torch.sigmoid(edge_logit_f0)[0, 0].cpu().numpy()  # [D, H, W]
-
-    # GT 标签
-    gt = seg_np[0].astype(np.uint8)  # [D, H, W]
+    edge_prob_f0 = torch.sigmoid(edge_logit_f0)[0, 0].cpu().numpy().astype(np.float32)
 
     return main_pred, ds_preds, edge_prob_f0, gt, data_np
 
@@ -467,6 +501,8 @@ def main():
     p_run.add_argument("--case_id", type=str, required=True, help="Case id (e.g. 'ESO_TJ_60011222468')")
     p_run.add_argument("--output_dir", type=str, default="fd_edge_vis", help="Directory to save visualizations")
     p_run.add_argument("--data_root", type=str, required=True, help="Root folder of preprocessed data for this Task/stage (e.g. /home/.../Task530_.../nnUNetData_plans_v2.1_trgSp_1x1x1_stage0)")
+    p_run.add_argument("--patch_size", type=int, default=64, help="Center-crop cubic patch size (D=H=W=patch_size). Set <=0 to disable patch cropping.")
+    p_run.add_argument("--do_fd_vis", action="store_true", help="Also perform frequency-domain visualization on the same patch.")
 
     # ---- 模式 2：纯频域可视化，不跑模型 ----
     p_fd = subparsers.add_parser("fd_only", help="Visualize frequency decomposition from existing arrays, without running the model")
@@ -481,7 +517,6 @@ def main():
     if args.mode == "fd_only":
         # 纯后处理频域可视化
         img_arr = _load_npy_or_nii(args.image)
-        # 若是 (D,H,W) 的 NIfTI，直接使用；若是 (C,D,H,W) 的 npy 也可
         seg_arr = _load_npy_or_nii(args.seg) if args.seg is not None else None
         edge_arr = _load_npy_or_nii(args.edge) if args.edge is not None else None
 
@@ -506,8 +541,20 @@ def main():
     if args.mode is None or args.mode == "run_model":
         trainer = get_trainer(args.plans_file, args.fold, args.output_folder)
 
-        seg_pred, ds_preds, edge_pred, gt, image = run_inference_on_case(trainer, args.case_id, args.data_root)
+        # Determine patch_size tuple or disable cropping
+        if getattr(args, "patch_size", 0) is not None and args.patch_size > 0:
+            patch_sz: Optional[Tuple[int, int, int]] = (args.patch_size, args.patch_size, args.patch_size)
+        else:
+            patch_sz = None
 
+        seg_pred, ds_preds, edge_pred, gt, image = run_inference_on_case(
+            trainer,
+            args.case_id,
+            args.data_root,
+            patch_size=patch_sz,
+        )
+
+        # Spatial-domain visualizations (seg/edge/deep supervision)
         save_visualizations(
             args.output_dir,
             args.case_id,
@@ -517,6 +564,17 @@ def main():
             edge_pred,
             gt,
         )
+
+        # Optional frequency-domain visualizations on the same (possibly cropped) volume
+        if getattr(args, "do_fd_vis", False):
+            # Use predicted segmentation as overlay; also pass edge prediction as optional edge map
+            visualize_frequency_from_arrays(
+                args.output_dir,
+                args.case_id + "_patch" if patch_sz is not None else args.case_id,
+                image,
+                seg=seg_pred,
+                edge=edge_pred,
+            )
 
 
 if __name__ == "__main__":

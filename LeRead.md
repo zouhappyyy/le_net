@@ -64,3 +64,15 @@ pkill -f mednextv1_train
    --case_id ESO_TJ_2801087499 \
    --channel 0 \
    --save_prefix fdconv_highfreq_real
+
+
+
+python visualize_fd_edge_and_ds.py run_model \
+  --plans_file /home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task530_EsoTJ_30pct/nnUNetPlansv2.1_trgSp_1x1x1_rwkv_plans_3D.pkl \
+  --fold 1 \
+  --output_folder /home/fangzheng/zoule/mednext/ckpt/nnUNet/3d_fullres/Task530_EsoTJ_30pct/nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt__nnUNetPlansv2.1_trgSp_1x1x1_rwkv \
+  --case_id ESO_TJ_60011222468 \
+  --data_root /home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task530_EsoTJ_30pct/nnUNetData_plans_v2.1_trgSp_1x1x1_stage0 \
+  --output_dir fd_edge_vis_flip \
+  --patch_size 64 \
+  --do_fd_vis
