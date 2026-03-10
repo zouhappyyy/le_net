@@ -243,17 +243,28 @@ def save_visualizations(
     edge_pred_f1: np.ndarray,
     gt: np.ndarray,
 ):
-    """Save 2D slice visualizations for main seg, GT, and both edge supervision maps."""
+    """Save 2D slice visualizations for main seg, GT, and both edge supervision maps.
+
+    Note: edge_pred_f0 and edge_pred_f1 may have different depth (D) from the
+    main output due to downsampling. Here we choose a safe slice index for each.
+    """
     os.makedirs(output_dir, exist_ok=True)
 
-    # 选中间一张切片进行可视化（主输出）
+    # 主输出使用的 z 索引（image/seg/gt 共用）
     z_main = image.shape[1] // 2  # image: [C, D, H, W]
     img_slice_main = image[0, z_main]
     seg_slice = seg_pred[z_main]
-    edge_slice_f0 = edge_pred_f0[z_main]
-    edge_slice_f1 = edge_pred_f1[z_main]
     gt_slice = gt[z_main]
     gt_edge_slice = _morphological_edge(gt)[z_main]
+
+    # 为 f0/f1 选择各自合法的切片索引，避免由于下采样造成越界
+    D_f0 = edge_pred_f0.shape[0]
+    z_f0 = min(z_main, D_f0 - 1)
+    edge_slice_f0 = edge_pred_f0[z_f0]
+
+    D_f1 = edge_pred_f1.shape[0]
+    z_f1 = min(z_main, D_f1 - 1)
+    edge_slice_f1 = edge_pred_f1[z_f1]
 
     # 1) 原图 + 主分割 + GT + GT 边界 + 预测边界
     fig, axes = plt.subplots(2, 3, figsize=(12, 8))
@@ -427,79 +438,84 @@ def visualize_frequency_from_arrays(
     case_id: str,
     image: np.ndarray,
     seg: Optional[np.ndarray] = None,
-    edge: Optional[np.ndarray] = None,
+    edge_f0: Optional[np.ndarray] = None,
+    edge_f1: Optional[np.ndarray] = None,
 ):
-    """在不运行模型的情况下，对已有 3D 图像/标签/边缘进行频域可视化。
+    """Frequency-domain visualization for a 3D volume.
 
-    参数：
-        image: [C,D,H,W] 或 [D,H,W]，原始预处理图像（至少一通道）
-        seg:   [D,H,W] 或 None，分割标签（可选）
-        edge:  [D,H,W] 或 None，边界概率/二值图（可选）
-    生成：
-        - {case_id}_fd_spatial_and_spectrum.png：空间切片 + 频谱
-        - {case_id}_fd_band_energy.png：频带能量分布
+    Compared to the previous version, this now accepts two edge supervision
+    volumes (edge_f0, edge_f1) which may be at different resolutions. For
+    each, we choose its own central slice for spatial overlays.
     """
     os.makedirs(output_dir, exist_ok=True)
 
+    # 规范 image 为 [D,H,W] 和选择一层切片
     if image.ndim == 4:
-        # [C,D,H,W]
         C, D, H, W = image.shape
-        z = D // 2
+        z_img = D // 2
         c = 0
-        img_slice = image[c, z]
+        img_slice = image[c, z_img]
         img_vol = image[c]
     elif image.ndim == 3:
         D, H, W = image.shape
-        z = D // 2
-        img_slice = image[z]
+        z_img = D // 2
+        img_slice = image[z_img]
         img_vol = image
     else:
         raise ValueError(f"image ndim must be 3 or 4, got {image.shape}")
 
-    # 1) 空间切片 + 对应频谱
+    # 1) 空间切片 + 对应频谱，优先显示 seg，然后显示 f0/f1 的一层
     spec = _compute_2d_fft_spectrum(img_slice)
 
-    fig, axes = plt.subplots(1, 3, figsize=(15, 4))
+    fig, axes = plt.subplots(1, 4, figsize=(20, 4))
 
     axes[0].imshow(img_slice, cmap="gray")
-    axes[0].set_title(f"Input slice z={z}")
+    axes[0].set_title(f"Input z={z_img}")
     axes[0].axis("off")
 
+    # Seg 覆盖
     if seg is not None:
-        if seg.ndim == 4 and seg.shape[0] == 1:
-            seg_3d = seg[0]
-        else:
-            seg_3d = seg
-        if seg_3d.shape[0] > z:
-            seg_slice = seg_3d[z]
-        else:
-            seg_slice = seg_3d[seg_3d.shape[0] // 2]
+        seg_3d = seg[0] if (seg.ndim == 4 and seg.shape[0] == 1) else seg
+        z_seg = min(z_img, seg_3d.shape[0] - 1)
+        seg_slice = seg_3d[z_seg]
         axes[1].imshow(img_slice, cmap="gray")
         axes[1].imshow(seg_slice, alpha=0.5)
-        axes[1].set_title("Segmentation (optional)")
+        axes[1].set_title(f"Seg (z={z_seg})")
         axes[1].axis("off")
-    elif edge is not None:
-        if edge.shape[0] > z:
-            edge_slice = edge[z]
-        else:
-            edge_slice = edge[edge.shape[0] // 2]
-        axes[1].imshow(img_slice, cmap="gray")
-        im = axes[1].imshow(edge_slice, cmap="jet", alpha=0.5)
-        axes[1].set_title("Edge (optional)")
-        axes[1].axis("off")
-        fig.colorbar(im, ax=axes[1], fraction=0.046, pad=0.04)
     else:
         axes[1].axis("off")
 
-    axes[2].imshow(spec, cmap="magma")
-    axes[2].set_title("FFT magnitude (log, norm)")
-    axes[2].axis("off")
+    # f0 边界覆盖
+    if edge_f0 is not None:
+        D0 = edge_f0.shape[0]
+        z0 = min(z_img, D0 - 1)
+        e0_slice = edge_f0[z0]
+        axes[2].imshow(img_slice, cmap="gray")
+        im0 = axes[2].imshow(e0_slice, cmap="jet", alpha=0.5)
+        axes[2].set_title(f"Edge f0 (z={z0})")
+        axes[2].axis("off")
+        fig.colorbar(im0, ax=axes[2], fraction=0.046, pad=0.04)
+    else:
+        axes[2].axis("off")
+
+    # f1 边界覆盖
+    if edge_f1 is not None:
+        D1 = edge_f1.shape[0]
+        z1 = min(z_img, D1 - 1)
+        e1_slice = edge_f1[z1]
+        axes[3].imshow(img_slice, cmap="gray")
+        im1 = axes[3].imshow(e1_slice, cmap="jet", alpha=0.5)
+        axes[3].set_title(f"Edge f1 (z={z1})")
+        axes[3].axis("off")
+        fig.colorbar(im1, ax=axes[3], fraction=0.046, pad=0.04)
+    else:
+        axes[3].axis("off")
 
     plt.tight_layout()
-    fig.savefig(os.path.join(output_dir, f"{case_id}_fd_spatial_and_spectrum.png"), dpi=300)
+    fig.savefig(os.path.join(output_dir, f"{case_id}_fd_spatial_and_edges_and_spectrum.png"), dpi=300)
     plt.close(fig)
 
-    # 2) 3D 频带能量分布
+    # 2) 3D 频带能量 + 各频带切片（仍使用 img_vol）
     bands, energy, band_volumes = _compute_band_energy_3d_with_volumes(img_vol)
     fig2, ax2 = plt.subplots(1, 1, figsize=(6, 4))
     labels = [f"B{i+1}" for i in range(len(energy))]
@@ -616,7 +632,8 @@ def main():
                 args.case_id + "_patch" if patch_sz is not None else args.case_id,
                 image,
                 seg=seg_pred,
-                edge=edge_pred_f0,
+                edge_f0=edge_pred_f0,
+                edge_f1=edge_pred_f1,
             )
 
 
