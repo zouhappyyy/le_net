@@ -176,24 +176,18 @@ def run_inference_on_case(
     case_id: str,
     data_root: str,
     patch_size: Optional[Tuple[int, int, int]] = (64, 64, 64),
-) -> Tuple[np.ndarray, List[np.ndarray], np.ndarray, np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, List[np.ndarray], np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Run inference on a single case.
 
     Returns (all with the *same* spatial size [D,H,W]):
       - main segmentation prediction (seg_main_pred)
       - list of deep supervision predictions (ds_preds)
-      - edge prediction (edge_f0)
+      - edge prediction f0 (edge_f0)
+      - edge prediction f1 (edge_f1)
       - GT label (gt)
       - image volume (image)
-
-    If `patch_size` is not None (default: (64,64,64)), the input volume and GT
-    are center-cropped to that patch before being fed into the network.
-    If the original volume is smaller along any axis, that axis is left
-    uncropped (no padding is introduced).
     """
     data_np, seg_np = _extract_case_data(data_root, case_id, trainer.dataset_directory)
-
-    # seg_np: [1, D, H, W]
     gt_full = seg_np[0].astype(np.uint8)
 
     # Optionally center-crop to a 3D patch (default 64^3)
@@ -215,11 +209,8 @@ def run_inference_on_case(
 
     net = trainer.network
     net.eval()
-
     with torch.no_grad():
-        out = net.net(data_t)
-
-    seg_outputs, edge_logit_f0, edge_logit_f1 = out
+        seg_outputs, edge_logit_f0, edge_logit_f1 = net.net(data_t)
 
     if isinstance(seg_outputs, (list, tuple)):
         seg_logits_list = [s for s in seg_outputs]
@@ -237,8 +228,9 @@ def run_inference_on_case(
         ds_preds.append(pred)
 
     edge_prob_f0 = torch.sigmoid(edge_logit_f0)[0, 0].cpu().numpy().astype(np.float32)
+    edge_prob_f1 = torch.sigmoid(edge_logit_f1)[0, 0].cpu().numpy().astype(np.float32)
 
-    return main_pred, ds_preds, edge_prob_f0, gt, data_np
+    return main_pred, ds_preds, edge_prob_f0, edge_prob_f1, gt, data_np
 
 
 def save_visualizations(
@@ -247,17 +239,19 @@ def save_visualizations(
     image: np.ndarray,
     seg_pred: np.ndarray,
     ds_preds: List[np.ndarray],
-    edge_pred: np.ndarray,
+    edge_pred_f0: np.ndarray,
+    edge_pred_f1: np.ndarray,
     gt: np.ndarray,
 ):
-    """保存原图 / 分割预测 / GT / 边界预测 / GT 边界 / 深监督预测切片图。"""
+    """Save 2D slice visualizations for main seg, GT, and both edge supervision maps."""
     os.makedirs(output_dir, exist_ok=True)
 
     # 选中间一张切片进行可视化（主输出）
     z_main = image.shape[1] // 2  # image: [C, D, H, W]
     img_slice_main = image[0, z_main]
     seg_slice = seg_pred[z_main]
-    edge_slice = edge_pred[z_main]
+    edge_slice_f0 = edge_pred_f0[z_main]
+    edge_slice_f1 = edge_pred_f1[z_main]
     gt_slice = gt[z_main]
     gt_edge_slice = _morphological_edge(gt)[z_main]
 
@@ -279,20 +273,24 @@ def save_visualizations(
     axes[0, 2].axis("off")
 
     axes[1, 0].imshow(img_slice_main, cmap="gray")
-    im0 = axes[1, 0].imshow(edge_slice, cmap="jet", alpha=0.5)
-    axes[1, 0].set_title("Pred Edge (f0)")
+    im0 = axes[1, 0].imshow(edge_slice_f0, cmap="jet", alpha=0.5)
+    axes[1, 0].set_title("Pred Edge f0")
     axes[1, 0].axis("off")
     fig.colorbar(im0, ax=axes[1, 0], fraction=0.046, pad=0.04)
 
     axes[1, 1].imshow(img_slice_main, cmap="gray")
-    axes[1, 1].imshow(gt_edge_slice, cmap="jet", alpha=0.5)
-    axes[1, 1].set_title("GT Edge")
+    im1 = axes[1, 1].imshow(edge_slice_f1, cmap="jet", alpha=0.5)
+    axes[1, 1].set_title("Pred Edge f1")
     axes[1, 1].axis("off")
+    fig.colorbar(im1, ax=axes[1, 1], fraction=0.046, pad=0.04)
 
+    axes[1, 2].imshow(img_slice_main, cmap="gray")
+    axes[1, 2].imshow(gt_edge_slice, cmap="jet", alpha=0.5)
+    axes[1, 2].set_title("GT Edge")
     axes[1, 2].axis("off")
 
     plt.tight_layout()
-    fig.savefig(os.path.join(output_dir, f"{case_id}_main_and_edge.png"), dpi=300)
+    fig.savefig(os.path.join(output_dir, f"{case_id}_main_and_edges.png"), dpi=300)
     plt.close(fig)
 
     # 2) 深监督各尺度预测
@@ -381,6 +379,49 @@ def _compute_band_energy_3d(feat_3d: np.ndarray, num_bins: int = 3) -> Tuple[np.
     return band_centers, energy_norm
 
 
+def _compute_band_energy_3d_with_volumes(
+    feat_3d: np.ndarray,
+    num_bins: int = 3,
+) -> Tuple[np.ndarray, np.ndarray, List[np.ndarray]]:
+    """Compute band energy and also return per-band spatial volumes.
+
+    Returns:
+        band_centers: [num_bins]
+        energy_norm: [num_bins]
+        band_volumes: list of [D,H,W] arrays, inverse-FFT of each band.
+    """
+    x = feat_3d.astype(np.float32)
+    x = x - x.mean()
+    F = np.fft.fftn(x)
+
+    D, H, W = x.shape
+    kz = np.fft.fftfreq(D)
+    ky = np.fft.fftfreq(H)
+    kx = np.fft.fftfreq(W)
+    gz, gy, gx = np.meshgrid(kz, ky, kx, indexing="ij")
+    radius = np.sqrt(gz ** 2 + gy ** 2 + gx ** 2)
+
+    r_flat = radius.reshape(-1)
+    r_max = r_flat.max() + 1e-8
+    bins = np.linspace(0.0, r_max, num_bins + 1)
+
+    energy = np.zeros(num_bins, dtype=np.float64)
+    band_volumes: List[np.ndarray] = []
+
+    for i in range(num_bins):
+        mask = (radius >= bins[i]) & (radius < bins[i + 1])
+        F_band = np.zeros_like(F, dtype=np.complex64)
+        F_band[mask] = F[mask]
+        x_band = np.fft.ifftn(F_band).real.astype(np.float32)
+        band_volumes.append(x_band)
+        energy[i] = (np.abs(F_band) ** 2).sum()
+
+    total = energy.sum() + 1e-8
+    energy_norm = energy / total
+    band_centers = 0.5 * (bins[:-1] + bins[1:])
+    return band_centers, energy_norm, band_volumes
+
+
 def visualize_frequency_from_arrays(
     output_dir: str,
     case_id: str,
@@ -459,7 +500,7 @@ def visualize_frequency_from_arrays(
     plt.close(fig)
 
     # 2) 3D 频带能量分布
-    bands, energy = _compute_band_energy_3d(img_vol)
+    bands, energy, band_volumes = _compute_band_energy_3d_with_volumes(img_vol)
     fig2, ax2 = plt.subplots(1, 1, figsize=(6, 4))
     labels = [f"B{i+1}" for i in range(len(energy))]
     ax2.bar(labels, energy)
@@ -471,22 +512,23 @@ def visualize_frequency_from_arrays(
     fig2.savefig(os.path.join(output_dir, f"{case_id}_fd_band_energy.png"), dpi=300)
     plt.close(fig2)
 
-
-def _load_npy_or_nii(path: str) -> np.ndarray:
-    """根据扩展名加载 .npy 或 .nii(.gz) 文件，返回 numpy 数组。
-
-    - .npy: 直接 np.load
-    - .nii/.nii.gz: 使用 nibabel 加载并返回 get_fdata()
-    """
-    ext = os.path.splitext(path)[1].lower()
-    if ext == ".npy":
-        return np.load(path)
-    if ext in (".nii", ".gz") or path.endswith(".nii.gz"):
-        import nibabel as nib
-
-        img = nib.load(path)
-        return img.get_fdata()
-    raise ValueError(f"Unsupported file extension for {path}")
+    # additionally visualize band volumes as 2D slices
+    z = img_vol.shape[0] // 2
+    fig3, axes3 = plt.subplots(1, len(band_volumes) + 1, figsize=(4 * (len(band_volumes) + 1), 4))
+    axes3[0].imshow(img_vol[z], cmap="gray")
+    axes3[0].set_title("Input (z={})".format(z))
+    axes3[0].axis("off")
+    for i, bv in enumerate(band_volumes):
+        ax = axes3[i + 1]
+        sl = bv[z]
+        vmin, vmax = np.percentile(sl, [1, 99])
+        sl = np.clip(sl, vmin, vmax)
+        ax.imshow(sl, cmap="gray")
+        ax.set_title(f"Band {i+1}")
+        ax.axis("off")
+    plt.tight_layout()
+    fig3.savefig(os.path.join(output_dir, f"{case_id}_fd_band_slices.png"), dpi=300)
+    plt.close(fig3)
 
 
 def main():
@@ -547,7 +589,7 @@ def main():
         else:
             patch_sz = None
 
-        seg_pred, ds_preds, edge_pred, gt, image = run_inference_on_case(
+        seg_pred, ds_preds, edge_pred_f0, edge_pred_f1, gt, image = run_inference_on_case(
             trainer,
             args.case_id,
             args.data_root,
@@ -561,7 +603,8 @@ def main():
             image,
             seg_pred,
             ds_preds,
-            edge_pred,
+            edge_pred_f0,
+            edge_pred_f1,
             gt,
         )
 
@@ -573,7 +616,7 @@ def main():
                 args.case_id + "_patch" if patch_sz is not None else args.case_id,
                 image,
                 seg=seg_pred,
-                edge=edge_pred,
+                edge=edge_pred_f0,
             )
 
 
