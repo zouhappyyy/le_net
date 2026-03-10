@@ -90,16 +90,15 @@ ENV/
 .ropeproject
 
 *.memmap
-*.png
 *.zip
 *.npz
 *.npy
-*.jpg
-*.jpeg
+
+
 .idea
 *.txt
 .idea/*
-*.png
+
 *.nii.gz
 *.nii
 *.tif
@@ -108,9 +107,6 @@ ENV/
 *.xml
 *.pkl
 *.pdf
-*.png
-*.jpg
-*.jpeg
 
 *.model
 
