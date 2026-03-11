@@ -6,8 +6,8 @@ import argparse
 
 def extract_metrics(summary_path, label="1"):
     """
-    从 nnUNet/MedNeXt 的 summary.json 中提取指定标签的 5 个指标：
-    Dice, Jaccard, Recall(Sensitivity), Precision, Hausdorff Distance 95
+    从 nnUNet/MedNeXt 的 summary.json 中提取指定标签的指标：
+    Dice, Jaccard, Recall(Sensitivity), Precision, Specificity, Hausdorff Distance 95, ASSD
     """
     if not os.path.isfile(summary_path):
         raise FileNotFoundError(f"summary 文件不存在: {summary_path}")
@@ -24,23 +24,47 @@ def extract_metrics(summary_path, label="1"):
             f"可用的标签有: {list(data['results']['mean'].keys())}"
         )
 
-    # 必备指标名称
+    # 必备重叠/分类指标
     dice = mean_metrics.get("Dice", None)
     iou = mean_metrics.get("Jaccard", None)
     sensitivity = mean_metrics.get("Recall", None)      # = Sensitivity
     precision = mean_metrics.get("Precision", None)
 
-    # D95 可能叫 "Hausdorff Distance 95" 或 "Hausdorff_95" 之类，这里做两种兼容
+    # Specificity: 一般对应 evaluator 中的 "True Negative Rate"
+    specificity = None
+    for key, val in mean_metrics.items():
+        k = key.lower().replace(" ", "")
+        if k in ("truenegativerate", "specificity"):
+            specificity = val
+            break
+
+    # D95 可能叫 "Hausdorff Distance 95" 或 "Hausdorff_95" 之类，这里做多种兼容
     d95 = None
-    for key in mean_metrics.keys():
-        if key.lower().replace(" ", "").startswith("hausdorffdistance95"):
-            d95 = mean_metrics[key]
+    for key, val in mean_metrics.items():
+        k = key.lower().replace(" ", "")
+        if k.startswith("hausdorffdistance95"):
+            d95 = val
             break
-        if key.lower().replace(" ", "").startswith("hausdorff95"):
-            d95 = mean_metrics[key]
+        if k.startswith("hausdorff95"):
+            d95 = val
             break
-        if key.lower().replace(" ", "") in ("hd95", "hausdorffdistance95mm"):
-            d95 = mean_metrics[key]
+        if k in ("hd95", "hausdorffdistance95mm"):
+            d95 = val
+            break
+
+    # ASSD: Avg. Symmetric Surface Distance，可能有多种写法
+    assd = None
+    for key, val in mean_metrics.items():
+        k = key.lower().replace(" ", "")
+        # 常见写法: "Avg. Symmetric Surface Distance" / "Average Symmetric Surface Distance" / "assd"
+        if k.startswith("avgsymmetricsurfacedistance"):
+            assd = val
+            break
+        if k.startswith("averagesymmetricsurfacedistance"):
+            assd = val
+            break
+        if k in ("assd",):
+            assd = val
             break
 
     return {
@@ -49,14 +73,16 @@ def extract_metrics(summary_path, label="1"):
         "IoU": iou,
         "Sensitivity": sensitivity,
         "Precision": precision,
+        "Specificity": specificity,
         "D95": d95,
+        "ASSD": assd,
     }
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="从 nnUNet/MedNeXt summary.json 中提取 5 个指标: "
-                    "Dice, IoU, Sensitivity, Precision, D95"
+        description="从 nnUNet/MedNeXt summary.json 中提取指标: "
+                    "Dice, IoU, Sensitivity, Precision, Specificity, D95, ASSD"
     )
     parser.add_argument(
         "--summary",
@@ -90,7 +116,9 @@ def main():
     print(f"IoU (Jaccard):       {metrics['IoU']}")
     print(f"Sensitivity (Recall):{metrics['Sensitivity']}")
     print(f"Precision:           {metrics['Precision']}")
+    print(f"Specificity (TNR):   {metrics['Specificity']}")
     print(f"95% Hausdorff (D95): {metrics['D95']}")
+    print(f"ASSD:                {metrics['ASSD']}")
 
     if args.out:
         # 只保留 validation 上两级：plans 目录 和 fold 目录
@@ -105,8 +133,8 @@ def main():
         source_str = f"{plans_name}/{fold_name}"
 
         # 简单写成一行 CSV
-        header = "label,Dice,IoU,Sensitivity,Precision,D95,Source\n"
-        line = "{label},{Dice},{IoU},{Sensitivity},{Precision},{D95},{source}\n".format(
+        header = "label,Dice,IoU,Sensitivity,Precision,Specificity,D95,ASSD,Source\n"
+        line = "{label},{Dice},{IoU},{Sensitivity},{Precision},{Specificity},{D95},{ASSD},{source}\n".format(
             source=source_str,
             **metrics,
         )

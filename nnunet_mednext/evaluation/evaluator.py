@@ -49,6 +49,7 @@ class Evaluator:
         "Total Positives Test",
         "Total Positives Reference",
         "Hausdorff Distance 95"
+        "Avg. Symmetric Surface Distance"
     ]
 
     default_advanced_metrics = [
