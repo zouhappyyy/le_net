@@ -48,7 +48,7 @@ class Evaluator:
         "False Discovery Rate",
         "Total Positives Test",
         "Total Positives Reference",
-        "Hausdorff Distance 95"
+        "Hausdorff Distance 95",
         "Avg. Symmetric Surface Distance"
     ]
 

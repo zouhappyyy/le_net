@@ -290,9 +290,33 @@ def _overlay_slice(img_slice: np.ndarray, mask_slice: np.ndarray, alpha: float =
         plt.imshow(mask_vis, cmap=cmap_mask, alpha=alpha)
 
 
+def _show_image_slice(img_slice: np.ndarray):
+    """Show image slice only, normalized to [0, 1]."""
+    img = img_slice.astype(np.float32)
+    v_min = float(np.min(img))
+    v_max = float(np.max(img))
+    if v_max > v_min:
+        img = (img - v_min) / (v_max - v_min)
+    else:
+        img = np.zeros_like(img, dtype=np.float32)
+    plt.imshow(img, cmap="gray", vmin=0.0, vmax=1.0)
+
+
+def _show_mask_slice(mask_slice: np.ndarray, cmap_mask: str = "jet"):
+    """Show mask slice only (non-zero as colored, background transparent)."""
+    mask = mask_slice.astype(np.float32)
+    if np.any(mask > 0):
+        mask_vis = mask.copy()
+        mask_vis[mask_vis == 0] = np.nan
+    else:
+        mask_vis = np.full_like(mask, np.nan, dtype=np.float32)
+    plt.imshow(mask_vis, cmap=cmap_mask)
+
+
 def _plot_and_save_slices(case_id: str, img_vol: np.ndarray, mask_vol: np.ndarray, out_dir: Path,
                           slices_per_direction: int, sampling_mode: str, directions: list[str],
-                          mask_alpha: float, dpi: int, figsize: tuple[float, float]):
+                          mask_alpha: float, dpi: int, figsize: tuple[float, float],
+                          export_mode: str = "overlay"):
     if img_vol.shape != mask_vol.shape:
         raise RuntimeError(f"Image and mask shapes differ for case {case_id}: {img_vol.shape} vs {mask_vol.shape}")
 
@@ -309,36 +333,88 @@ def _plot_and_save_slices(case_id: str, img_vol: np.ndarray, mask_vol: np.ndarra
             else:
                 idx_list = _sample_indices(D, slices_per_direction, sampling_mode)
             for idx in idx_list:
-                fig = plt.figure(figsize=figsize)
-                _overlay_slice(img_vol[idx, :, :], mask_vol[idx, :, :], alpha=mask_alpha)
-                plt.axis("off")
-                fname = f"{case_id}_axial_{idx:03d}.png"
-                fig.savefig(out_dir / fname, dpi=dpi, bbox_inches="tight", pad_inches=0)
-                plt.close(fig)
+                if export_mode == "overlay":
+                    fig = plt.figure(figsize=figsize)
+                    _overlay_slice(img_vol[idx, :, :], mask_vol[idx, :, :], alpha=mask_alpha)
+                    plt.axis("off")
+                    fname = f"{case_id}_axial_{idx:03d}.png"
+                    fig.savefig(out_dir / fname, dpi=dpi, bbox_inches="tight", pad_inches=0)
+                    plt.close(fig)
+                elif export_mode == "separate":
+                    # image-only
+                    fig = plt.figure(figsize=figsize)
+                    _show_image_slice(img_vol[idx, :, :])
+                    plt.axis("off")
+                    fname_img = f"{case_id}_axial_{idx:03d}_img.png"
+                    fig.savefig(out_dir / fname_img, dpi=dpi, bbox_inches="tight", pad_inches=0)
+                    plt.close(fig)
+                    # mask-only
+                    fig = plt.figure(figsize=figsize)
+                    _show_mask_slice(mask_vol[idx, :, :])
+                    plt.axis("off")
+                    fname_msk = f"{case_id}_axial_{idx:03d}_mask.png"
+                    fig.savefig(out_dir / fname_msk, dpi=dpi, bbox_inches="tight", pad_inches=0)
+                    plt.close(fig)
+                else:
+                    raise ValueError(f"Unknown export_mode: {export_mode}")
         elif direction == "coronal":
             if sampling_mode == "center_mask":
                 idx_list = _sample_indices_around_center(H, slices_per_direction, cy)
             else:
                 idx_list = _sample_indices(H, slices_per_direction, sampling_mode)
             for idx in idx_list:
-                fig = plt.figure(figsize=figsize)
-                _overlay_slice(img_vol[:, idx, :], mask_vol[:, idx, :], alpha=mask_alpha)
-                plt.axis("off")
-                fname = f"{case_id}_coronal_{idx:03d}.png"
-                fig.savefig(out_dir / fname, dpi=dpi, bbox_inches="tight", pad_inches=0)
-                plt.close(fig)
+                if export_mode == "overlay":
+                    fig = plt.figure(figsize=figsize)
+                    _overlay_slice(img_vol[:, idx, :], mask_vol[:, idx, :], alpha=mask_alpha)
+                    plt.axis("off")
+                    fname = f"{case_id}_coronal_{idx:03d}.png"
+                    fig.savefig(out_dir / fname, dpi=dpi, bbox_inches="tight", pad_inches=0)
+                    plt.close(fig)
+                elif export_mode == "separate":
+                    fig = plt.figure(figsize=figsize)
+                    _show_image_slice(img_vol[:, idx, :])
+                    plt.axis("off")
+                    fname_img = f"{case_id}_coronal_{idx:03d}_img.png"
+                    fig.savefig(out_dir / fname_img, dpi=dpi, bbox_inches="tight", pad_inches=0)
+                    plt.close(fig)
+
+                    fig = plt.figure(figsize=figsize)
+                    _show_mask_slice(mask_vol[:, idx, :])
+                    plt.axis("off")
+                    fname_msk = f"{case_id}_coronal_{idx:03d}_mask.png"
+                    fig.savefig(out_dir / fname_msk, dpi=dpi, bbox_inches="tight", pad_inches=0)
+                    plt.close(fig)
+                else:
+                    raise ValueError(f"Unknown export_mode: {export_mode}")
         elif direction == "sagittal":
             if sampling_mode == "center_mask":
                 idx_list = _sample_indices_around_center(W, slices_per_direction, cx)
             else:
                 idx_list = _sample_indices(W, slices_per_direction, sampling_mode)
             for idx in idx_list:
-                fig = plt.figure(figsize=figsize)
-                _overlay_slice(img_vol[:, :, idx], mask_vol[:, :, idx], alpha=mask_alpha)
-                plt.axis("off")
-                fname = f"{case_id}_sagittal_{idx:03d}.png"
-                fig.savefig(out_dir / fname, dpi=dpi, bbox_inches="tight", pad_inches=0)
-                plt.close(fig)
+                if export_mode == "overlay":
+                    fig = plt.figure(figsize=figsize)
+                    _overlay_slice(img_vol[:, :, idx], mask_vol[:, :, idx], alpha=mask_alpha)
+                    plt.axis("off")
+                    fname = f"{case_id}_sagittal_{idx:03d}.png"
+                    fig.savefig(out_dir / fname, dpi=dpi, bbox_inches="tight", pad_inches=0)
+                    plt.close(fig)
+                elif export_mode == "separate":
+                    fig = plt.figure(figsize=figsize)
+                    _show_image_slice(img_vol[:, :, idx])
+                    plt.axis("off")
+                    fname_img = f"{case_id}_sagittal_{idx:03d}_img.png"
+                    fig.savefig(out_dir / fname_img, dpi=dpi, bbox_inches="tight", pad_inches=0)
+                    plt.close(fig)
+
+                    fig = plt.figure(figsize=figsize)
+                    _show_mask_slice(mask_vol[:, :, idx])
+                    plt.axis("off")
+                    fname_msk = f"{case_id}_sagittal_{idx:03d}_mask.png"
+                    fig.savefig(out_dir / fname_msk, dpi=dpi, bbox_inches="tight", pad_inches=0)
+                    plt.close(fig)
+                else:
+                    raise ValueError(f"Unknown export_mode: {export_mode}")
         else:
             raise ValueError(f"Unknown direction: {direction}")
 
@@ -357,7 +433,16 @@ def visualize_ct_slices(
     mask_alpha: float = 0.4,
     dpi: int = 150,
     figsize: tuple[float, float] = (4, 4),
+    export_mode: str = "overlay",
 ):
+    """Visualize CT and mask slices.
+
+    export_mode:
+        - "overlay": (default) image + mask overlay in a single PNG per slice.
+        - "separate": export image-only and mask-only PNGs per slice, with filename suffixes
+          "_img" and "_mask" respectively.
+    Note: mask_alpha only affects "overlay" mode and is ignored in "separate" mode.
+    """
     out_root = Path(output_dir)
     out_root.mkdir(parents=True, exist_ok=True)
 
@@ -383,7 +468,6 @@ def visualize_ct_slices(
 
         img_vol_norm = _apply_window_or_norm(img_vol, window_center, window_width, norm_mode)
 
-        # Save all case slices directly into out_root, without creating case subfolders
         _plot_and_save_slices(
             cid,
             img_vol_norm,
@@ -395,6 +479,7 @@ def visualize_ct_slices(
             mask_alpha=mask_alpha,
             dpi=dpi,
             figsize=figsize,
+            export_mode=export_mode,
         )
 
 
@@ -412,9 +497,10 @@ def _build_argparser():
     parser.add_argument("--window_center", type=float, default=None, help="CT window center (HU). If set with window_width, overrides norm_mode")
     parser.add_argument("--window_width", type=float, default=None, help="CT window width (HU). If set with window_center, overrides norm_mode")
     parser.add_argument("--norm_mode", type=str, default="minmax", choices=["none", "minmax", "zscore"], help="Normalization mode when window is not provided")
-    parser.add_argument("--mask_alpha", type=float, default=0.4, help="Alpha (transparency) for mask overlay")
+    parser.add_argument("--mask_alpha", type=float, default=0.4, help="Alpha (transparency) for mask overlay (overlay mode only)")
     parser.add_argument("--dpi", type=int, default=150, help="DPI of saved PNGs")
     parser.add_argument("--figsize", type=float, nargs=2, default=[4.0, 4.0], metavar=("W", "H"), help="Figure size in inches (width height)")
+    parser.add_argument("--export_mode", type=str, default="overlay", choices=["overlay", "separate"], help="How to export slices: 'overlay' (image+mask) or 'separate' (image-only and mask-only PNGs)")
     return parser
 
 
@@ -439,6 +525,7 @@ if __name__ == "__main__":
         mask_alpha=args.mask_alpha,
         dpi=args.dpi,
         figsize=(args.figsize[0], args.figsize[1]),
+        export_mode=args.export_mode,
     )
 
     # Example (PowerShell):
@@ -448,4 +535,5 @@ if __name__ == "__main__":
     #   --output_dir "E:\\ESO_SEG_TJ\\vis_slices" \
     #   --slices_per_direction 3 \
     #   --sampling_mode center_mask \
-    #   --window_center 40 --window_width 400
+    #   --window_center 40 --window_width 400 \
+    #   --export_mode separate

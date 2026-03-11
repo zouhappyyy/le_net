@@ -5,6 +5,7 @@ from typing import List, Tuple, Optional
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
+import torch.nn.functional as F
 
 from nnunet_mednext.training.network_training.nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt import (
     nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt,
@@ -262,9 +263,23 @@ def save_visualizations(
     z_f0 = min(z_main, D_f0 - 1)
     edge_slice_f0 = edge_pred_f0[z_f0]
 
-    D_f1 = edge_pred_f1.shape[0]
+    D_f1, H_f1, W_f1 = edge_pred_f1.shape
     z_f1 = min(z_main, D_f1 - 1)
     edge_slice_f1 = edge_pred_f1[z_f1]
+
+    # 为第二层边界监督构造与其分辨率匹配的下采样原图切片
+    # image: [C, D, H, W] -> 下采样到 [C, D_f1, H_f1, W_f1]
+    C, D, H, W = image.shape
+    image_t = torch.from_numpy(image[None])  # [1, C, D, H, W]
+    with torch.no_grad():
+        image_down_t = F.interpolate(
+            image_t,
+            size=(D_f1, H_f1, W_f1),
+            mode="trilinear",
+            align_corners=False,
+        )
+    image_down = image_down_t[0].cpu().numpy()  # [C, D_f1, H_f1, W_f1]
+    img_slice_f1 = image_down[0, z_f1]
 
     # 1) 原图 + 主分割 + GT + GT 边界 + 预测边界
     fig, axes = plt.subplots(2, 3, figsize=(12, 8))
@@ -289,9 +304,10 @@ def save_visualizations(
     axes[1, 0].axis("off")
     fig.colorbar(im0, ax=axes[1, 0], fraction=0.046, pad=0.04)
 
-    axes[1, 1].imshow(img_slice_main, cmap="gray")
+    # 第二层边界监督：在与其分辨率匹配的下采样原图上叠加
+    axes[1, 1].imshow(img_slice_f1, cmap="gray")
     im1 = axes[1, 1].imshow(edge_slice_f1, cmap="jet", alpha=0.5)
-    axes[1, 1].set_title("Pred Edge f1")
+    axes[1, 1].set_title("Pred Edge f1 (downsampled scale)")
     axes[1, 1].axis("off")
     fig.colorbar(im1, ax=axes[1, 1], fraction=0.046, pad=0.04)
 
@@ -551,12 +567,26 @@ def visualize_frequency_from_arrays(
 
     # Edge f1 overlay
     if edge_f1 is not None:
-        D1 = edge_f1.shape[0]
+        # 在与 edge_f1 分辨率匹配的下采样原图上叠加第二层边界
+        D1, H1, W1 = edge_f1.shape
         z1 = min(z_img, D1 - 1)
         e1_slice = edge_f1[z1]
-        axes[3].imshow(img_slice, cmap="gray")
+
+        # 将 img_vol[D,H,W] 下采样到 [D1,H1,W1]
+        img_vol_t = torch.from_numpy(img_vol[None, None].astype(np.float32))  # [1,1,D,H,W]
+        with torch.no_grad():
+            img_vol_down_t = F.interpolate(
+                img_vol_t,
+                size=(D1, H1, W1),
+                mode="trilinear",
+                align_corners=False,
+            )
+        img_vol_down = img_vol_down_t[0, 0].cpu().numpy()  # [D1,H1,W1]
+        img_slice_f1 = img_vol_down[z1]
+
+        axes[3].imshow(img_slice_f1, cmap="gray")
         im1 = axes[3].imshow(e1_slice, cmap="jet", alpha=0.5)
-        axes[3].set_title(f"Edge f1 (z={z1})")
+        axes[3].set_title(f"Edge f1 (downsampled z={z1})")
         axes[3].axis("off")
         fig.colorbar(im1, ax=axes[3], fraction=0.046, pad=0.04)
     else:
@@ -565,15 +595,6 @@ def visualize_frequency_from_arrays(
     plt.tight_layout()
     fig.savefig(os.path.join(output_dir, f"{case_id}_fd_spatial_and_edges.png"), dpi=300)
     plt.close(fig)
-
-    # Also save pure FFT magnitude (for clarity)
-    fig_mag, ax_mag = plt.subplots(1, 1, figsize=(5, 4))
-    ax_mag.imshow(spec, cmap="magma")
-    ax_mag.set_title("FFT magnitude (log)")
-    ax_mag.axis("off")
-    plt.tight_layout()
-    fig_mag.savefig(os.path.join(output_dir, f"{case_id}_fd_fft_magnitude_only.png"), dpi=300)
-    plt.close(fig_mag)
 
     # 2) 3D band energy + vanilla radius-binned band slices
     bands, energy, band_volumes = _compute_band_energy_3d_with_volumes(img_vol)
@@ -621,8 +642,21 @@ def visualize_frequency_from_arrays(
         low_slice_n = _norm_slice(low_slice)
         high_slice_n = _norm_slice(high_slice)
 
+        # 原始切片也做同样的归一化，便于对比
+        img_slice_n = _norm_slice(img_vol[z])
+
+        # 基于高频分量构造一个简单的蒙版，突出高频区域
+        # 这里使用高频幅值的中位数+一倍标准差作为阈值（可根据需要调整）
+        high_abs = np.abs(high_slice_n)
+        thr = high_abs.mean() + high_abs.std()
+        mask = (high_abs > thr).astype(np.float32)
+
+        # 带蒙版的原图：仅保留高频显著区域
+        masked_img = img_slice_n * mask
+
+        # 图 1：原图 / 低频 / 高频
         fig4, axes4 = plt.subplots(1, 3, figsize=(12, 4))
-        axes4[0].imshow(img_vol[z], cmap="gray")
+        axes4[0].imshow(img_slice_n, cmap="gray")
         axes4[0].set_title(f"Input (z={z})")
         axes4[0].axis("off")
 
@@ -637,6 +671,30 @@ def visualize_frequency_from_arrays(
         plt.tight_layout()
         fig4.savefig(os.path.join(output_dir, f"{case_id}_fd_fbm_low_vs_high.png"), dpi=300)
         plt.close(fig4)
+
+        # 图 2：原图 / 高频蒙版 / 带蒙版原图
+        fig5, axes5 = plt.subplots(1, 4, figsize=(16, 4))
+        axes5[0].imshow(img_slice_n, cmap="gray")
+        axes5[0].set_title(f"Input (z={z})")
+        axes5[0].axis("off")
+
+        axes5[1].imshow(low_slice_n, cmap="gray")
+        axes5[1].set_title("Low-freq")
+        axes5[1].axis("off")
+
+        axes5[2].imshow(high_slice_n, cmap="gray")
+        axes5[2].set_title("High-freq")
+        axes5[2].axis("off")
+
+        axes5[3].imshow(img_slice_n, cmap="gray")
+        # 用半透明方式叠加高频蒙版，红色区域表示高频显著位置
+        axes5[3].imshow(mask, cmap="jet", alpha=0.5)
+        axes5[3].set_title("Input with high-freq mask")
+        axes5[3].axis("off")
+
+        plt.tight_layout()
+        fig5.savefig(os.path.join(output_dir, f"{case_id}_fd_fbm_low_high_masked.png"), dpi=300)
+        plt.close(fig5)
     except Exception as e:
         # Fail-safe: don't crash visualization if FBM-like decomposition fails for some edge case
         print(f"[WARN] FBM-like frequency decomposition failed for {case_id}: {e}")
