@@ -40,12 +40,12 @@ run_cmd "Double_CCA_UPSam_fd_loss_RWKV_MedNeXt Task530 fold 3 验证" \
     mednextv1_train 3d_fullres nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt 530 3 \
     -p nnUNetPlansv2.1_trgSp_1x1x1_rwkv -val
 
-# 4. Double_RWKV_MedNeXt fold 0
+# 4. Double_RWKV_MedNeXt fold 0  shibai
 run_cmd "Double_RWKV_MedNeXt Task530 fold 0 验证" \
     mednextv1_train 3d_fullres nnUNetTrainerV2_Double_RWKV_MedNeXt 530 0 \
     -p nnUNetPlansv2.1_trgSp_1x1x1_rwkv -val
 
-# 5. Double_RWKV_MedNeXt fold 1
+# 5. Double_RWKV_MedNeXt fold 1 shibai0.0
 run_cmd "Double_RWKV_MedNeXt Task530 fold 1 验证" \
     mednextv1_train 3d_fullres nnUNetTrainerV2_Double_RWKV_MedNeXt 530 1 \
     -p nnUNetPlansv2.1_trgSp_1x1x1_rwkv -val

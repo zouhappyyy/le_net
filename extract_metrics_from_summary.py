@@ -93,9 +93,23 @@ def main():
     print(f"95% Hausdorff (D95): {metrics['D95']}")
 
     if args.out:
+        # 只保留 validation 上两级：plans 目录 和 fold 目录
+        abs_summary = os.path.abspath(args.summary)
+        val_dir = os.path.dirname(abs_summary)          # .../validation_raw_postprocessed
+        fold_dir = os.path.dirname(val_dir)             # .../fold_1
+        plans_dir = os.path.dirname(fold_dir)           # .../nnUNetPlans...
+
+        fold_name = os.path.basename(fold_dir)          # e.g. fold_1
+        plans_name = os.path.basename(plans_dir)        # e.g. nnUNetPlansv2.1_trgSp_1x1x1_rwkv
+
+        source_str = f"{plans_name}/{fold_name}"
+
         # 简单写成一行 CSV
-        header = "label,Dice,IoU,Sensitivity,Precision,D95\n"
-        line = "{label},{Dice},{IoU},{Sensitivity},{Precision},{D95}\n".format(**metrics)
+        header = "label,Dice,IoU,Sensitivity,Precision,D95,Source\n"
+        line = "{label},{Dice},{IoU},{Sensitivity},{Precision},{D95},{source}\n".format(
+            source=source_str,
+            **metrics,
+        )
 
         write_header = not os.path.exists(args.out)
         with open(args.out, "a", encoding="utf-8") as f:
