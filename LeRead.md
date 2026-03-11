@@ -83,3 +83,9 @@ cd /home/fangzheng/zoule/mednext
 
 chmod +x batch_vis.sh
 ./batch_vis.sh
+
+
+python extract_metrics_from_summary.py \
+  --summary ./ckpt/nnUNet/3d_fullres/Task530_EsoTJ_30pct/nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt__nnUNetPlansv2.1_trgSp_1x1x1_rwkv/fold_1/validation_raw_postprocessed/summary.json \
+  --label 1
+--out val_metrics.csv
