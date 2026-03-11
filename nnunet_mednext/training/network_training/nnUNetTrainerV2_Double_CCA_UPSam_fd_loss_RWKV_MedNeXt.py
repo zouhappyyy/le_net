@@ -36,21 +36,43 @@ class Double_CCA_UPSam_fd_loss_RWKV_MedNeXt(SegmentationNetwork):
         self.do_ds = getattr(self.net, "do_ds", False)
 
     def forward(self, x):
-        """训练 / 验证阶段都返回完整三元组，供 MultipleOutputWithEdgeLoss 使用。"""
-        return self.net(x)
+        """训练 / 验证阶段都返回完整三元组给 loss；
+
+        但在 eval 模式下（validate / predict_3D）需要向 nnUNet 推理管线
+        提供单个 5D logits tensor，以便 softmax_helper 正常工作。
+        """
+        out = self.net(x)
+
+        # 训练阶段：MultipleOutputWithEdgeLoss 需要完整的 (seg_outputs, edge_f0, edge_f1)
+        if self.training:
+            return out
+
+        # 推理/验证阶段：仅向外暴露分割 logits，避免 tuple 传入 softmax_helper
+        # 预期底层返回 (seg_outputs, edge_logit_f0, edge_logit_f1)
+        if isinstance(out, (tuple, list)) and len(out) == 3:
+            seg_outputs, edge_logit_f0, edge_logit_f1 = out
+            # seg_outputs 可能是 deep supervision list，也可能是单个 tensor
+            if isinstance(seg_outputs, (tuple, list)) and len(seg_outputs) > 0:
+                return seg_outputs[0]
+            return seg_outputs
+
+        # 兼容旧版本：若仅为 DS list/tuple，则取第一个输出
+        if isinstance(out, (tuple, list)) and len(out) > 0:
+            return out[0]
+
+        # 否则直接返回 tensor
+        return out
 
     def inference_logits(self, x):
-        """仅用于推理/可视化等需要分割 logits 的场景。
-
-        - 若底层 net 返回 (seg_outputs, edge_logit_f0, edge_logit_f1)，只取最高分辨率 seg logits；
-        - 若底层 net 已经返回单个 logits tensor，则直接返回。
-        """
+        """显式获取推理阶段的分割 logits（最高分辨率）。"""
         out = self.net(x)
         if isinstance(out, (list, tuple)) and len(out) == 3:
             seg_outputs, edge_logit_f0, edge_logit_f1 = out
             if isinstance(seg_outputs, (list, tuple)) and len(seg_outputs) > 0:
                 return seg_outputs[0]
             return seg_outputs
+        if isinstance(out, (list, tuple)) and len(out) > 0:
+            return out[0]
         return out
 
 
