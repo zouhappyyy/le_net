@@ -1,7 +1,7 @@
 {
     "author": "Fabian",
     "description": "",
-    "id": "87a28c1fe076",
+    "id": "3d04016018c7",
     "name": "",
     "results": {
         "all": [
@@ -13,6 +13,7 @@
                     "False Negative Rate": 1.0,
                     "False Omission Rate": 0.015761375427246094,
                     "False Positive Rate": 0.0,
+                    "Hausdorff Distance 95": NaN,
                     "Jaccard": 0.0,
                     "Negative Predictive Value": 0.9842386245727539,
                     "Precision": NaN,
@@ -32,6 +33,7 @@
                     "False Negative Rate": 1.0,
                     "False Omission Rate": 0.019332408905029297,
                     "False Positive Rate": 0.0,
+                    "Hausdorff Distance 95": NaN,
                     "Jaccard": 0.0,
                     "Negative Predictive Value": 0.9806675910949707,
                     "Precision": NaN,
@@ -51,6 +53,7 @@
                     "False Negative Rate": 1.0,
                     "False Omission Rate": 0.03823137283325195,
                     "False Positive Rate": 0.0,
+                    "Hausdorff Distance 95": NaN,
                     "Jaccard": 0.0,
                     "Negative Predictive Value": 0.961768627166748,
                     "Precision": NaN,
@@ -70,6 +73,7 @@
                     "False Negative Rate": 1.0,
                     "False Omission Rate": 0.034993648529052734,
                     "False Positive Rate": 0.0,
+                    "Hausdorff Distance 95": NaN,
                     "Jaccard": 0.0,
                     "Negative Predictive Value": 0.9650063514709473,
                     "Precision": NaN,
@@ -89,6 +93,7 @@
                     "False Negative Rate": 1.0,
                     "False Omission Rate": 0.016593456268310547,
                     "False Positive Rate": 0.0,
+                    "Hausdorff Distance 95": NaN,
                     "Jaccard": 0.0,
                     "Negative Predictive Value": 0.9834065437316895,
                     "Precision": NaN,
@@ -108,6 +113,7 @@
                     "False Negative Rate": 1.0,
                     "False Omission Rate": 0.0159149169921875,
                     "False Positive Rate": 0.0,
+                    "Hausdorff Distance 95": NaN,
                     "Jaccard": 0.0,
                     "Negative Predictive Value": 0.9840850830078125,
                     "Precision": NaN,
@@ -127,6 +133,7 @@
                     "False Negative Rate": 1.0,
                     "False Omission Rate": 0.024435997009277344,
                     "False Positive Rate": 0.0,
+                    "Hausdorff Distance 95": NaN,
                     "Jaccard": 0.0,
                     "Negative Predictive Value": 0.9755640029907227,
                     "Precision": NaN,
@@ -147,6 +154,7 @@
                 "False Negative Rate": 1.0,
                 "False Omission Rate": 0.023609025137765065,
                 "False Positive Rate": 0.0,
+                "Hausdorff Distance 95": NaN,
                 "Jaccard": 0.0,
                 "Negative Predictive Value": 0.9763909748622349,
                 "Precision": NaN,
@@ -158,5 +166,5 @@
         }
     },
     "task": "",
-    "timestamp": "2026-03-06 20:20:17.611548"
+    "timestamp": "2026-03-11 16:49:41.377598"
 }

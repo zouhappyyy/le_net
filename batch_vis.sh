@@ -4,7 +4,7 @@ set -e
 DATA_ROOT="/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task530_EsoTJ_30pct/nnUNetData_plans_v2.1_trgSp_1x1x1_stage0"
 PLANS_FILE="/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task530_EsoTJ_30pct/nnUNetPlansv2.1_trgSp_1x1x1_rwkv_plans_3D.pkl"
 OUTPUT_FOLDER="/home/fangzheng/zoule/mednext/ckpt/nnUNet/3d_fullres/Task530_EsoTJ_30pct/nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt__nnUNetPlansv2.1_trgSp_1x1x1_rwkv"
-OUT_DIR="/home/fangzheng/zoule/mednext/fd_edge_vis_all"
+OUT_DIR="/home/fangzheng/zoule/mednext/fd_edge_vis_all312"
 FOLD=1
 PATCH_SIZE=64
 

@@ -56,6 +56,7 @@ def extract_metrics(summary_path, label="1"):
     assd = None
     for key, val in mean_metrics.items():
         k = key.lower().replace(" ", "")
+        k = k.lower().replace(".", "")
         # 常见写法: "Avg. Symmetric Surface Distance" / "Average Symmetric Surface Distance" / "assd"
         if k.startswith("avgsymmetricsurfacedistance"):
             assd = val
@@ -102,7 +103,7 @@ def main():
         "--out",
         "-o",
         type=str,
-        default="",
+        default="val_metrics.csv",
         help="可选：输出结果保存到的 txt/csv 文件路径；若不指定则只打印",
     )
 
