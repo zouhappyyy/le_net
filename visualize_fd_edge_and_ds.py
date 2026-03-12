@@ -452,7 +452,7 @@ def _compute_band_energy_3d_with_volumes(
 def fbm_style_decompose_progressive(
     vol: np.ndarray,
     k_list: Tuple[int, ...] = (2, 4, 8),
-) -> Tuple[np.ndarray, np.ndarray, List[np.ndarray]]:
+) -> Tuple[np.ndarray, np.ndarray, List[np.ndarray], List[np.ndarray]]:
     """Progressive FBM-style frequency decomposition with cumulative high-frequency.
 
     This mirrors the core logic used in the network's FBM/FDConv module:
@@ -470,22 +470,19 @@ def fbm_style_decompose_progressive(
         k_list: tuple of ints, same semantics as the network's k_list.
 
     Returns:
-        low_cum: np.ndarray [D,H,W], final low-frequency accumulation (pre_x).
-        high_acc: np.ndarray [D,H,W], accumulated high-frequency residual.
-        high_parts: list of np.ndarray [D,H,W], per-band high_part in order of k_list.
+        low_cum: final low-frequency accumulation (pre_x), shape [D,H,W]
+        high_acc: accumulated high-frequency residual, shape [D,H,W]
+        high_parts: list of per-band high_part in order of k_list, each [D,H,W]
+        low_parts: list of per-band low_part in order of k_list, each [D,H,W]
     """
     assert vol.ndim == 3, f"Expected 3D volume, got shape {vol.shape}"
     D, H, W = vol.shape
 
-    # 0) convert to torch tensor, center to zero-mean
     x = torch.from_numpy(vol.astype(np.float32))
     x = x - x.mean()
 
-    # 1) rFFTN over (D,H,W) with ortho norm (matching torch.fft.rfftn call in net)
-    #    x_fft: [D,H,W_rfft] complex tensor
     x_fft = torch.fft.rfftn(x, s=(D, H, W), dim=(-3, -2, -1), norm="ortho")
 
-    # 2) build frequency grid and per-band masks (equivalent to cached_masks + interpolate)
     kz = torch.fft.fftfreq(D, device=x_fft.device)
     ky = torch.fft.fftfreq(H, device=x_fft.device)
     kx = torch.fft.rfftfreq(W, device=x_fft.device)
@@ -494,26 +491,26 @@ def fbm_style_decompose_progressive(
 
     masks: List[torch.Tensor] = []
     for k in k_list:
-        # same threshold rule: freq_dist < 0.5 / k
         m = (freq_dist < (0.5 / float(k) + 1e-8)).float()
         masks.append(m)
 
     pre_x = x.clone()
     high_acc = torch.zeros_like(x)
     high_parts: List[np.ndarray] = []
+    low_parts: List[np.ndarray] = []
 
     for m in masks:
-        # 低频部分：x_fft * mask -> irfftn
         low_part = torch.fft.irfftn(x_fft * m, s=(D, H, W), dim=(-3, -2, -1), norm="ortho").float()
-        # 高频残差：当前 pre_x 减去这一轮的低频
         high_part = pre_x - low_part
         pre_x = low_part
         high_acc = high_acc + high_part
+        # store CPU numpy versions for visualization
+        low_parts.append(low_part.cpu().numpy().astype(np.float32))
         high_parts.append(high_part.cpu().numpy().astype(np.float32))
 
     low_cum = pre_x.cpu().numpy().astype(np.float32)
     high_acc_np = high_acc.cpu().numpy().astype(np.float32)
-    return low_cum, high_acc_np, high_parts
+    return low_cum, high_acc_np, high_parts, low_parts
 
 
 def visualize_frequency_from_arrays(
@@ -637,9 +634,9 @@ def visualize_frequency_from_arrays(
     fig3.savefig(os.path.join(output_dir, f"{case_id}_fd_band_slices.png"), dpi=300)
     plt.close(fig3)
 
-    # 3) FBM-progressive low/high + per-band highs
+    # 3) FBM-progressive low/high + per-band highs & lows
     try:
-        low_cum, high_acc, high_parts = fbm_style_decompose_progressive(img_vol, k_list=(2, 4, 8))
+        low_cum, high_acc, high_parts, low_parts = fbm_style_decompose_progressive(img_vol, k_list=(2, 4, 8))
 
         def _norm_slice(sl: np.ndarray) -> np.ndarray:
             vmin, vmax = np.percentile(sl, [1, 99])
@@ -670,7 +667,7 @@ def visualize_frequency_from_arrays(
         fig4.savefig(os.path.join(output_dir, f"{case_id}_fbm_prog_low_high.png"), dpi=300)
         plt.close(fig4)
 
-        # Per-band high slices
+        # Per-band high slices (three high-frequency features)
         n_bands = len(high_parts)
         if n_bands > 0:
             fig5, axes5 = plt.subplots(1, n_bands + 1, figsize=(4 * (n_bands + 1), 4))
@@ -687,6 +684,24 @@ def visualize_frequency_from_arrays(
             plt.tight_layout()
             fig5.savefig(os.path.join(output_dir, f"{case_id}_fbm_prog_high_bands.png"), dpi=300)
             plt.close(fig5)
+
+        # Per-band low slices (three low-frequency features)
+        n_low = len(low_parts)
+        if n_low > 0:
+            fig6, axes6 = plt.subplots(1, n_low + 1, figsize=(4 * (n_low + 1), 4))
+            axes6[0].imshow(img_slice_n, cmap="gray")
+            axes6[0].set_title(f"Input (z={z})")
+            axes6[0].axis("off")
+
+            for i, lp in enumerate(low_parts):
+                lp_slice_n = _norm_slice(lp[z])
+                axes6[i + 1].imshow(lp_slice_n, cmap="gray")
+                axes6[i + 1].set_title(f"Low Band {i+1}")
+                axes6[i + 1].axis("off")
+
+            plt.tight_layout()
+            fig6.savefig(os.path.join(output_dir, f"{case_id}_fbm_prog_low_bands.png"), dpi=300)
+            plt.close(fig6)
     except Exception as e:
         print(f"[WARN] FBM-progressive visualization failed for {case_id}: {e}")
 
