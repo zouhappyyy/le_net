@@ -498,206 +498,106 @@ def _fbm_like_decompose_3d(vol: np.ndarray, k_list: Tuple[int, ...] = (2, 4, 8))
     return pre_x, high_acc
 
 
-def visualize_frequency_from_arrays(
+def visualize_frequency_bands(
     output_dir: str,
     case_id: str,
     image: np.ndarray,
-    seg: Optional[np.ndarray] = None,
-    edge_f0: Optional[np.ndarray] = None,
-    edge_f1: Optional[np.ndarray] = None,
-):
-    """Frequency-domain visualization for a 3D volume.
+    num_bins: int = 3,
+) -> None:
+    """Explicitly visualize several low/mid/high frequency bands and cumulative high-frequency component.
 
-    - Shows spatial slice + segmentation/edges overlays.
-    - Shows standard FFT magnitude spectrum (2D) of the slice.
-    - Shows 3D band energy and per-band reconstructions from vanilla radius-based bins.
-    - Additionally shows FBM-like low/high decomposition (matching FDConv FrequencyBandModulation3D
-      logic: rFFTN + masks based on freq_dist < 0.5/k for given k_list).
+    This uses the radius-based 3D FFT band decomposition implemented in
+    `_compute_band_energy_3d_with_volumes`. For `num_bins=3`, we treat:
+
+      - band 1: lowest frequency band
+      - band 2: mid frequency band
+      - band 3: highest frequency band
+
+    We export:
+      1) A figure with input slice + each individual band slice.
+      2) A figure with input slice + cumulative high-frequency component
+         (sum of mid and high bands), including an overlay mask.
     """
     os.makedirs(output_dir, exist_ok=True)
 
-    # Normalize image into [D,H,W] + pick one slice
+    # Normalize to [D,H,W] single-channel volume
     if image.ndim == 4:
-        C, D, H, W = image.shape
-        z_img = D // 2
-        c = 0
-        img_slice = image[c, z_img]
-        img_vol = image[c]
+        # assume [C,D,H,W], take first channel
+        img_vol = image[0].astype(np.float32)
     elif image.ndim == 3:
-        D, H, W = image.shape
-        z_img = D // 2
-        img_slice = image[z_img]
-        img_vol = image
+        img_vol = image.astype(np.float32)
     else:
         raise ValueError(f"image ndim must be 3 or 4, got {image.shape}")
 
-    # 1) Spatial slice + FFT magnitude + optional seg/edges
-    spec = _compute_2d_fft_spectrum(img_slice)
+    # Compute band volumes via 3D FFT radius bins
+    bands, energy, band_volumes = _compute_band_energy_3d_with_volumes(img_vol, num_bins=num_bins)
 
-    fig, axes = plt.subplots(1, 4, figsize=(20, 4))
-
-    axes[0].imshow(img_slice, cmap="gray")
-    axes[0].set_title(f"Input z={z_img}")
-    axes[0].axis("off")
-
-    # Seg overlay
-    if seg is not None:
-        seg_3d = seg[0] if (seg.ndim == 4 and seg.shape[0] == 1) else seg
-        z_seg = min(z_img, seg_3d.shape[0] - 1)
-        seg_slice = seg_3d[z_seg]
-        axes[1].imshow(img_slice, cmap="gray")
-        axes[1].imshow(seg_slice, alpha=0.5)
-        axes[1].set_title(f"Seg (z={z_seg})")
-        axes[1].axis("off")
-    else:
-        axes[1].axis("off")
-
-    # Edge f0 overlay
-    if edge_f0 is not None:
-        D0 = edge_f0.shape[0]
-        z0 = min(z_img, D0 - 1)
-        e0_slice = edge_f0[z0]
-        axes[2].imshow(img_slice, cmap="gray")
-        im0 = axes[2].imshow(e0_slice, cmap="jet", alpha=0.5)
-        axes[2].set_title(f"Edge f0 (z={z0})")
-        axes[2].axis("off")
-        fig.colorbar(im0, ax=axes[2], fraction=0.046, pad=0.04)
-    else:
-        axes[2].axis("off")
-
-    # Edge f1 overlay
-    if edge_f1 is not None:
-        # 在与 edge_f1 分辨率匹配的下采样原图上叠加第二层边界
-        D1, H1, W1 = edge_f1.shape
-        z1 = min(z_img, D1 - 1)
-        e1_slice = edge_f1[z1]
-
-        # 将 img_vol[D,H,W] 下采样到 [D1,H1,W1]
-        img_vol_t = torch.from_numpy(img_vol[None, None].astype(np.float32))  # [1,1,D,H,W]
-        with torch.no_grad():
-            img_vol_down_t = F.interpolate(
-                img_vol_t,
-                size=(D1, H1, W1),
-                mode="trilinear",
-                align_corners=False,
-            )
-        img_vol_down = img_vol_down_t[0, 0].cpu().numpy()  # [D1,H1,W1]
-        img_slice_f1 = img_vol_down[z1]
-
-        axes[3].imshow(img_slice_f1, cmap="gray")
-        im1 = axes[3].imshow(e1_slice, cmap="jet", alpha=0.5)
-        axes[3].set_title(f"Edge f1 (downsampled z={z1})")
-        axes[3].axis("off")
-        fig.colorbar(im1, ax=axes[3], fraction=0.046, pad=0.04)
-    else:
-        axes[3].axis("off")
-
-    plt.tight_layout()
-    fig.savefig(os.path.join(output_dir, f"{case_id}_fd_spatial_and_edges.png"), dpi=300)
-    plt.close(fig)
-
-    # 2) 3D band energy + vanilla radius-binned band slices
-    bands, energy, band_volumes = _compute_band_energy_3d_with_volumes(img_vol)
-    fig2, ax2 = plt.subplots(1, 1, figsize=(6, 4))
-    labels = [f"B{i+1}" for i in range(len(energy))]
-    ax2.bar(labels, energy)
-    ax2.set_ylabel("Energy ratio")
-    ax2.set_title("3D frequency band energy (radial bins)")
-    for i, v in enumerate(energy):
-        ax2.text(i, v + 0.01, f"{v:.2f}", ha="center", va="bottom", fontsize=8)
-    plt.tight_layout()
-    fig2.savefig(os.path.join(output_dir, f"{case_id}_fd_band_energy.png"), dpi=300)
-    plt.close(fig2)
-
+    # Pick a representative slice in depth
     z = img_vol.shape[0] // 2
-    fig3, axes3 = plt.subplots(1, len(band_volumes) + 1, figsize=(4 * (len(band_volumes) + 1), 4))
-    axes3[0].imshow(img_vol[z], cmap="gray")
-    axes3[0].set_title("Input (z={})".format(z))
-    axes3[0].axis("off")
-    for i, bv in enumerate(band_volumes):
-        ax = axes3[i + 1]
-        sl = bv[z]
+
+    def _norm_slice(sl: np.ndarray) -> np.ndarray:
         vmin, vmax = np.percentile(sl, [1, 99])
         sl = np.clip(sl, vmin, vmax)
-        ax.imshow(sl, cmap="gray")
-        ax.set_title(f"Band {i+1}")
-        ax.axis("off")
+        if vmax > vmin:
+            sl = (sl - vmin) / (vmax - vmin)
+        return sl
+
+    img_slice_n = _norm_slice(img_vol[z])
+
+    # 1) Individual band slices (low/mid/high)
+    # figure: Input + num_bins bands
+    fig, axes = plt.subplots(1, num_bins + 1, figsize=(4 * (num_bins + 1), 4))
+
+    axes[0].imshow(img_slice_n, cmap="gray")
+    axes[0].set_title(f"Input (z={z})")
+    axes[0].axis("off")
+
+    for i in range(num_bins):
+        sl = band_volumes[i][z]
+        sl_n = _norm_slice(sl)
+        axes[i + 1].imshow(sl_n, cmap="gray")
+        axes[i + 1].set_title(f"Band {i+1}")
+        axes[i + 1].axis("off")
+
     plt.tight_layout()
-    fig3.savefig(os.path.join(output_dir, f"{case_id}_fd_band_slices.png"), dpi=300)
-    plt.close(fig3)
+    fig.savefig(os.path.join(output_dir, f"{case_id}_fd_bands_individual.png"), dpi=300)
+    plt.close(fig)
 
-    # 3) FBM-like low/high decomposition (matching FDConv.FBM logic on img_vol)
-    try:
-        low_cum, high_acc = _fbm_like_decompose_3d(img_vol, k_list=(2, 4, 8))
-        low_slice = low_cum[z]
-        high_slice = high_acc[z]
+    # 2) Cumulative high-frequency component and mask overlay
+    # Treat highest bands as "high"; for num_bins=3, we use band2+band3.
+    if num_bins >= 2:
+        high_cum_vol = np.zeros_like(img_vol, dtype=np.float32)
+        # accumulate from band index 1 to end (mid+high)
+        for i in range(1, num_bins):
+            high_cum_vol += band_volumes[i].astype(np.float32)
 
-        def _norm_slice(sl: np.ndarray) -> np.ndarray:
-            vmin, vmax = np.percentile(sl, [1, 99])
-            sl = np.clip(sl, vmin, vmax)
-            if vmax > vmin:
-                sl = (sl - vmin) / (vmax - vmin)
-            return sl
-
-        low_slice_n = _norm_slice(low_slice)
+        high_slice = high_cum_vol[z]
         high_slice_n = _norm_slice(high_slice)
 
-        # 原始切片也做同样的归一化，便于对比
-        img_slice_n = _norm_slice(img_vol[z])
-
-        # 基于高频分量构造一个简单的蒙版，突出高频区域
-        # 这里使用高频幅值的中位数+一倍标准差作为阈值（可根据需要调整）
+        # simple mask from high-frequency magnitude
         high_abs = np.abs(high_slice_n)
         thr = high_abs.mean() + high_abs.std()
         mask = (high_abs > thr).astype(np.float32)
 
-        # 带蒙版的原图：仅保留高频显著区域
-        masked_img = img_slice_n * mask
+        # figure: input / high_cum / input+mask
+        fig2, axes2 = plt.subplots(1, 3, figsize=(12, 4))
 
-        # 图 1：原图 / 低频 / 高频
-        fig4, axes4 = plt.subplots(1, 3, figsize=(12, 4))
-        axes4[0].imshow(img_slice_n, cmap="gray")
-        axes4[0].set_title(f"Input (z={z})")
-        axes4[0].axis("off")
+        axes2[0].imshow(img_slice_n, cmap="gray")
+        axes2[0].set_title(f"Input (z={z})")
+        axes2[0].axis("off")
 
-        axes4[1].imshow(low_slice_n, cmap="gray")
-        axes4[1].set_title("FBM-like Low")
-        axes4[1].axis("off")
+        axes2[1].imshow(high_slice_n, cmap="gray")
+        axes2[1].set_title("High-cum (bands 2..N)")
+        axes2[1].axis("off")
 
-        axes4[2].imshow(high_slice_n, cmap="gray")
-        axes4[2].set_title("FBM-like High (acc)")
-        axes4[2].axis("off")
-
-        plt.tight_layout()
-        fig4.savefig(os.path.join(output_dir, f"{case_id}_fd_fbm_low_vs_high.png"), dpi=300)
-        plt.close(fig4)
-
-        # 图 2：原图 / 高频蒙版 / 带蒙版原图
-        fig5, axes5 = plt.subplots(1, 4, figsize=(16, 4))
-        axes5[0].imshow(img_slice_n, cmap="gray")
-        axes5[0].set_title(f"Input (z={z})")
-        axes5[0].axis("off")
-
-        axes5[1].imshow(low_slice_n, cmap="gray")
-        axes5[1].set_title("Low-freq")
-        axes5[1].axis("off")
-
-        axes5[2].imshow(high_slice_n, cmap="gray")
-        axes5[2].set_title("High-freq")
-        axes5[2].axis("off")
-
-        axes5[3].imshow(img_slice_n, cmap="gray")
-        # 用半透明方式叠加高频蒙版，红色区域表示高频显著位置
-        axes5[3].imshow(mask, cmap="jet", alpha=0.5)
-        axes5[3].set_title("Input with high-freq mask")
-        axes5[3].axis("off")
+        axes2[2].imshow(img_slice_n, cmap="gray")
+        axes2[2].imshow(mask, cmap="jet", alpha=0.5)
+        axes2[2].set_title("Input with high-cum mask")
+        axes2[2].axis("off")
 
         plt.tight_layout()
-        fig5.savefig(os.path.join(output_dir, f"{case_id}_fd_fbm_low_high_masked.png"), dpi=300)
-        plt.close(fig5)
-    except Exception as e:
-        # Fail-safe: don't crash visualization if FBM-like decomposition fails for some edge case
-        print(f"[WARN] FBM-like frequency decomposition failed for {case_id}: {e}")
+        fig2.savefig(os.path.join(output_dir, f"{case_id}_fd_bands_high_cum.png"), dpi=300)
+        plt.close(fig2)
 
 
 def _load_npy_or_nii(path: str) -> np.ndarray:
@@ -742,6 +642,36 @@ def main():
     p_fd.add_argument("--case_id", type=str, default="case", help="Case id used in output file names")
     p_fd.add_argument("--output_dir", type=str, default="fd_vis_only", help="Directory to save frequency visualizations")
 
+    # ---- 模式 3：仅基于 3D FFT 频带分解，导出各个频带及累加高频的可视化 ----
+    p_fd_bands = subparsers.add_parser(
+        "fd_bands",
+        help="Visualize individual 3D FFT frequency bands and cumulative high-frequency component",
+    )
+    p_fd_bands.add_argument(
+        "--image",
+        type=str,
+        required=True,
+        help="Path to image volume (.npy or .nii.gz), shape [C,D,H,W] or [D,H,W]",
+    )
+    p_fd_bands.add_argument(
+        "--case_id",
+        type=str,
+        default="case",
+        help="Case id used in output file names",
+    )
+    p_fd_bands.add_argument(
+        "--output_dir",
+        type=str,
+        default="fd_bands_vis",
+        help="Directory to save band visualizations",
+    )
+    p_fd_bands.add_argument(
+        "--num_bins",
+        type=int,
+        default=3,
+        help="Number of radial frequency bands (default: 3)",
+    )
+
     args = parser.parse_args()
 
     if args.mode == "fd_only":
@@ -765,6 +695,18 @@ def main():
             edge_arr = np.squeeze(edge_arr)
 
         visualize_frequency_from_arrays(args.output_dir, args.case_id, image, seg_arr, edge_arr)
+        return
+
+    if args.mode == "fd_bands":
+        img_arr = _load_npy_or_nii(args.image)
+        if img_arr.ndim == 3:
+            image = img_arr.astype(np.float32)
+        elif img_arr.ndim == 4:
+            image = img_arr.astype(np.float32)
+        else:
+            raise RuntimeError(f"Unsupported image shape {img_arr.shape}, expected 3D or 4D volume")
+
+        visualize_frequency_bands(args.output_dir, args.case_id, image, num_bins=args.num_bins)
         return
 
     # 默认或显式 run_model 模式：保持原逻辑

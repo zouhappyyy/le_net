@@ -98,3 +98,11 @@ python extract_metrics_from_summary.py \
   --summary ./ckpt/nnUNet/3d_fullres/Task530_EsoTJ_30pct/nnUNetTrainerV2_Double_CCA_UPSam_fd_RWKV_MedNeXt__nnUNetPlansv2.1_trgSp_1x1x1_rwkv/fold_1/validation_raw_postprocessed/summary.json \
 python extract_metrics_from_summary.py \
   --summary ./ckpt/nnUNet/3d_fullres/Task530_EsoTJ_30pct/nnUNetTrainerV2_MedNeXt_S_kernel3__nnUNetPlansv2.1_trgSp_1x1x1_rwkv/fold_1/validation_raw_postprocessed/summary.json \
+
+
+频带模式
+python visualize_fd_edge_and_ds.py fd_bands `
+  --image "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task530_EsoTJ_30pct/nnUNetData_plans_v2.1_trgSp_1x1x1_stage0/ESO_TJ_60017544096.npy" `
+  --case_id "ESO_TJ_60017544096" `
+  --output_dir "/home/fangzheng/zoule/mednext/fd_bands_vis" `
+  --num_bins 3
