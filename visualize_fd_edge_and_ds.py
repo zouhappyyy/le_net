@@ -516,106 +516,179 @@ def fbm_style_decompose_progressive(
     return low_cum, high_acc_np, high_parts
 
 
-def visualize_frequency_bands(
+def visualize_frequency_from_arrays(
     output_dir: str,
     case_id: str,
     image: np.ndarray,
-    num_bins: int = 3,
-) -> None:
-    """Explicitly visualize several low/mid/high frequency bands and cumulative high-frequency component.
+    seg: Optional[np.ndarray] = None,
+    edge_f0: Optional[np.ndarray] = None,
+    edge_f1: Optional[np.ndarray] = None,
+):
+    """Frequency-domain visualization for a 3D volume.
 
-    This uses the radius-based 3D FFT band decomposition implemented in
-    `_compute_band_energy_3d_with_volumes`. For `num_bins=3`, we treat:
-
-      - band 1: lowest frequency band
-      - band 2: mid frequency band
-      - band 3: highest frequency band
-
-    We export:
-      1) A figure with input slice + each individual band slice.
-      2) A figure with input slice + cumulative high-frequency component
-         (sum of mid and high bands), including an overlay mask.
+    - Shows spatial slice + segmentation/edges overlays.
+    - Shows standard FFT magnitude spectrum (2D) of the slice.
+    - Shows 3D band energy and per-band reconstructions from vanilla radius-based bins.
+    - Additionally shows FBM-like low/high decomposition via fbm_style_decompose_progressive.
     """
     os.makedirs(output_dir, exist_ok=True)
 
-    # Normalize to [D,H,W] single-channel volume
+    # Normalize image into [D,H,W] + pick one slice
     if image.ndim == 4:
-        # assume [C,D,H,W], take first channel
-        img_vol = image[0].astype(np.float32)
+        C, D, H, W = image.shape
+        z_img = D // 2
+        c = 0
+        img_slice = image[c, z_img]
+        img_vol = image[c]
     elif image.ndim == 3:
-        img_vol = image.astype(np.float32)
+        D, H, W = image.shape
+        z_img = D // 2
+        img_slice = image[z_img]
+        img_vol = image
     else:
         raise ValueError(f"image ndim must be 3 or 4, got {image.shape}")
 
-    # Compute band volumes via 3D FFT radius bins
-    bands, energy, band_volumes = _compute_band_energy_3d_with_volumes(img_vol, num_bins=num_bins)
-
-    # Pick a representative slice in depth
-    z = img_vol.shape[0] // 2
-
-    def _norm_slice(sl: np.ndarray) -> np.ndarray:
-        vmin, vmax = np.percentile(sl, [1, 99])
-        sl = np.clip(sl, vmin, vmax)
-        if vmax > vmin:
-            sl = (sl - vmin) / (vmax - vmin)
-        return sl
-
-    img_slice_n = _norm_slice(img_vol[z])
-
-    # 1) Individual band slices (low/mid/high)
-    # figure: Input + num_bins bands
-    fig, axes = plt.subplots(1, num_bins + 1, figsize=(4 * (num_bins + 1), 4))
-
-    axes[0].imshow(img_slice_n, cmap="gray")
-    axes[0].set_title(f"Input (z={z})")
+    # 1) Spatial slice + optional seg/edges
+    fig, axes = plt.subplots(1, 4, figsize=(20, 4))
+    axes[0].imshow(img_slice, cmap="gray")
+    axes[0].set_title(f"Input z={z_img}")
     axes[0].axis("off")
 
-    for i in range(num_bins):
-        sl = band_volumes[i][z]
-        sl_n = _norm_slice(sl)
-        axes[i + 1].imshow(sl_n, cmap="gray")
-        axes[i + 1].set_title(f"Band {i+1}")
-        axes[i + 1].axis("off")
+    # Seg overlay
+    if seg is not None:
+        seg_3d = seg[0] if (seg.ndim == 4 and seg.shape[0] == 1) else seg
+        z_seg = min(z_img, seg_3d.shape[0] - 1)
+        seg_slice = seg_3d[z_seg]
+        axes[1].imshow(img_slice, cmap="gray")
+        axes[1].imshow(seg_slice, alpha=0.5)
+        axes[1].set_title(f"Seg (z={z_seg})")
+        axes[1].axis("off")
+    else:
+        axes[1].axis("off")
+
+    # Edge f0 overlay
+    if edge_f0 is not None:
+        D0 = edge_f0.shape[0]
+        z0 = min(z_img, D0 - 1)
+        e0_slice = edge_f0[z0]
+        axes[2].imshow(img_slice, cmap="gray")
+        im0 = axes[2].imshow(e0_slice, cmap="jet", alpha=0.5)
+        axes[2].set_title(f"Edge f0 (z={z0})")
+        axes[2].axis("off")
+        fig.colorbar(im0, ax=axes[2], fraction=0.046, pad=0.04)
+    else:
+        axes[2].axis("off")
+
+    # Edge f1 overlay (downsampled scale)
+    if edge_f1 is not None:
+        D1, H1, W1 = edge_f1.shape
+        z1 = min(z_img, D1 - 1)
+        e1_slice = edge_f1[z1]
+
+        img_vol_t = torch.from_numpy(img_vol[None, None].astype(np.float32))
+        with torch.no_grad():
+            img_vol_down_t = F.interpolate(
+                img_vol_t,
+                size=(D1, H1, W1),
+                mode="trilinear",
+                align_corners=False,
+            )
+        img_vol_down = img_vol_down_t[0, 0].cpu().numpy()
+        img_slice_f1 = img_vol_down[z1]
+
+        axes[3].imshow(img_slice_f1, cmap="gray")
+        im1 = axes[3].imshow(e1_slice, cmap="jet", alpha=0.5)
+        axes[3].set_title(f"Edge f1 (down z={z1})")
+        axes[3].axis("off")
+        fig.colorbar(im1, ax=axes[3], fraction=0.046, pad=0.04)
+    else:
+        axes[3].axis("off")
 
     plt.tight_layout()
-    fig.savefig(os.path.join(output_dir, f"{case_id}_fd_bands_individual.png"), dpi=300)
+    fig.savefig(os.path.join(output_dir, f"{case_id}_fd_spatial_and_edges.png"), dpi=300)
     plt.close(fig)
 
-    # 2) Cumulative high-frequency component and mask overlay
-    # Treat highest bands as "high"; for num_bins=3, we use band2+band3.
-    if num_bins >= 2:
-        high_cum_vol = np.zeros_like(img_vol, dtype=np.float32)
-        # accumulate from band index 1 to end (mid+high)
-        for i in range(1, num_bins):
-            high_cum_vol += band_volumes[i].astype(np.float32)
+    # 2) 3D band energy + band slices
+    bands, energy, band_volumes = _compute_band_energy_3d_with_volumes(img_vol)
+    fig2, ax2 = plt.subplots(1, 1, figsize=(6, 4))
+    labels = [f"B{i+1}" for i in range(len(energy))]
+    ax2.bar(labels, energy)
+    ax2.set_ylabel("Energy ratio")
+    ax2.set_title("3D frequency band energy (radial bins)")
+    for i, v in enumerate(energy):
+        ax2.text(i, v + 0.01, f"{v:.2f}", ha="center", va="bottom", fontsize=8)
+    plt.tight_layout()
+    fig2.savefig(os.path.join(output_dir, f"{case_id}_fd_band_energy.png"), dpi=300)
+    plt.close(fig2)
 
-        high_slice = high_cum_vol[z]
-        high_slice_n = _norm_slice(high_slice)
+    z = img_vol.shape[0] // 2
+    fig3, axes3 = plt.subplots(1, len(band_volumes) + 1, figsize=(4 * (len(band_volumes) + 1), 4))
+    axes3[0].imshow(img_vol[z], cmap="gray")
+    axes3[0].set_title(f"Input (z={z})")
+    axes3[0].axis("off")
+    for i, bv in enumerate(band_volumes):
+        sl = bv[z]
+        vmin, vmax = np.percentile(sl, [1, 99])
+        sl = np.clip(sl, vmin, vmax)
+        axes3[i + 1].imshow(sl, cmap="gray")
+        axes3[i + 1].set_title(f"Band {i+1}")
+        axes3[i + 1].axis("off")
+    plt.tight_layout()
+    fig3.savefig(os.path.join(output_dir, f"{case_id}_fd_band_slices.png"), dpi=300)
+    plt.close(fig3)
 
-        # simple mask from high-frequency magnitude
-        high_abs = np.abs(high_slice_n)
-        thr = high_abs.mean() + high_abs.std()
-        mask = (high_abs > thr).astype(np.float32)
+    # 3) FBM-progressive low/high + per-band highs
+    try:
+        low_cum, high_acc, high_parts = fbm_style_decompose_progressive(img_vol, k_list=(2, 4, 8))
 
-        # figure: input / high_cum / input+mask
-        fig2, axes2 = plt.subplots(1, 3, figsize=(12, 4))
+        def _norm_slice(sl: np.ndarray) -> np.ndarray:
+            vmin, vmax = np.percentile(sl, [1, 99])
+            sl = np.clip(sl, vmin, vmax)
+            if vmax > vmin:
+                sl = (sl - vmin) / (vmax - vmin)
+            return sl
 
-        axes2[0].imshow(img_slice_n, cmap="gray")
-        axes2[0].set_title(f"Input (z={z})")
-        axes2[0].axis("off")
+        img_slice_n = _norm_slice(img_vol[z])
+        low_slice_n = _norm_slice(low_cum[z])
+        high_slice_n = _norm_slice(high_acc[z])
 
-        axes2[1].imshow(high_slice_n, cmap="gray")
-        axes2[1].set_title("High-cum (bands 2..N)")
-        axes2[1].axis("off")
+        # Figure: Input / Low / High(acc)
+        fig4, axes4 = plt.subplots(1, 3, figsize=(12, 4))
+        axes4[0].imshow(img_slice_n, cmap="gray")
+        axes4[0].set_title(f"Input (z={z})")
+        axes4[0].axis("off")
 
-        axes2[2].imshow(img_slice_n, cmap="gray")
-        axes2[2].imshow(mask, cmap="jet", alpha=0.5)
-        axes2[2].set_title("Input with high-cum mask")
-        axes2[2].axis("off")
+        axes4[1].imshow(low_slice_n, cmap="gray")
+        axes4[1].set_title("FBM Low (prog)")
+        axes4[1].axis("off")
+
+        axes4[2].imshow(high_slice_n, cmap="gray")
+        axes4[2].set_title("FBM High Acc")
+        axes4[2].axis("off")
 
         plt.tight_layout()
-        fig2.savefig(os.path.join(output_dir, f"{case_id}_fd_bands_high_cum.png"), dpi=300)
-        plt.close(fig2)
+        fig4.savefig(os.path.join(output_dir, f"{case_id}_fbm_prog_low_high.png"), dpi=300)
+        plt.close(fig4)
+
+        # Per-band high slices
+        n_bands = len(high_parts)
+        if n_bands > 0:
+            fig5, axes5 = plt.subplots(1, n_bands + 1, figsize=(4 * (n_bands + 1), 4))
+            axes5[0].imshow(img_slice_n, cmap="gray")
+            axes5[0].set_title(f"Input (z={z})")
+            axes5[0].axis("off")
+
+            for i, hp in enumerate(high_parts):
+                hp_slice_n = _norm_slice(hp[z])
+                axes5[i + 1].imshow(hp_slice_n, cmap="gray")
+                axes5[i + 1].set_title(f"High Band {i+1}")
+                axes5[i + 1].axis("off")
+
+            plt.tight_layout()
+            fig5.savefig(os.path.join(output_dir, f"{case_id}_fbm_prog_high_bands.png"), dpi=300)
+            plt.close(fig5)
+    except Exception as e:
+        print(f"[WARN] FBM-progressive visualization failed for {case_id}: {e}")
 
 
 def _load_npy_or_nii(path: str) -> np.ndarray:
