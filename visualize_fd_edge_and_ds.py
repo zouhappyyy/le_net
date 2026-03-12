@@ -449,53 +449,71 @@ def _compute_band_energy_3d_with_volumes(
     return band_centers, energy_norm, band_volumes
 
 
-def _fbm_like_decompose_3d(vol: np.ndarray, k_list: Tuple[int, ...] = (2, 4, 8)) -> Tuple[np.ndarray, np.ndarray]:
-    """Replicate the core FBM frequency decomposition logic on a single-channel 3D volume.
+def fbm_style_decompose_progressive(
+    vol: np.ndarray,
+    k_list: Tuple[int, ...] = (2, 4, 8),
+) -> Tuple[np.ndarray, np.ndarray, List[np.ndarray]]:
+    """Progressive FBM-style frequency decomposition with cumulative high-frequency.
 
-    This mirrors FrequencyBandModulation3D.forward (rfftn + cached_masks + low/high split):
-      - x_fft: rFFTN of the volume
-      - for each k in k_list:
-          mask: freq_dist < 0.5/k (low-frequency mask in rFFT grid)
-          low_part  = irFFTN(x_fft * mask)
-          high_part = pre_x - low_part
-          pre_x     = low_part
-          high_acc += high_part
+    This mirrors the core logic used in the network's FBM/FDConv module:
+
+      1. x_fft = rFFTN(x) over (D,H,W) with ortho normalization.
+      2. Precompute frequency masks for each k in k_list: freq_dist < 0.5 / k.
+      3. For each band idx, k:
+           low_part  = irFFTN(x_fft * mask_k)
+           high_part = pre_x - low_part
+           pre_x     = low_part
+           high_acc += high_part
 
     Args:
-        vol: np.ndarray of shape [D, H, W]
-        k_list: tuple of integers, same semantics as FBM.k_list
+        vol: np.ndarray of shape [D,H,W], single-channel volume.
+        k_list: tuple of ints, same semantics as the network's k_list.
 
     Returns:
-        low_cum: final low-frequency accumulation (pre_x), shape [D,H,W]
-        high_acc: accumulated high-frequency residual, shape [D,H,W]
+        low_cum: np.ndarray [D,H,W], final low-frequency accumulation (pre_x).
+        high_acc: np.ndarray [D,H,W], accumulated high-frequency residual.
+        high_parts: list of np.ndarray [D,H,W], per-band high_part in order of k_list.
     """
     assert vol.ndim == 3, f"Expected 3D volume, got shape {vol.shape}"
     D, H, W = vol.shape
-    x = vol.astype(np.float32)
+
+    # 0) convert to torch tensor, center to zero-mean
+    x = torch.from_numpy(vol.astype(np.float32))
     x = x - x.mean()
 
-    # rFFTN over (D,H,W), last dim uses rfftfreq like FBM (use_rfft=True)
-    x_fft = np.fft.rfftn(x, s=(D, H, W), axes=(0, 1, 2), norm='ortho')
+    # 1) rFFTN over (D,H,W) with ortho norm (matching torch.fft.rfftn call in net)
+    #    x_fft: [D,H,W_rfft] complex tensor
+    x_fft = torch.fft.rfftn(x, s=(D, H, W), dim=(-3, -2, -1), norm="ortho")
 
-    # Build frequency grid consistent with get_fft3freq(..., use_rfft=True)
-    kz = np.fft.fftfreq(D)
-    ky = np.fft.fftfreq(H)
-    kx = np.fft.rfftfreq(W)
-    gz, gy, gx = np.meshgrid(kz, ky, kx, indexing='ij')
-    freq_dist = np.sqrt(gz ** 2 + gy ** 2 + gx ** 2)
+    # 2) build frequency grid and per-band masks (equivalent to cached_masks + interpolate)
+    kz = torch.fft.fftfreq(D, device=x_fft.device)
+    ky = torch.fft.fftfreq(H, device=x_fft.device)
+    kx = torch.fft.rfftfreq(W, device=x_fft.device)
+    gz, gy, gx = torch.meshgrid(kz, ky, kx, indexing="ij")
+    freq_dist = torch.sqrt(gz ** 2 + gy ** 2 + gx ** 2)
 
-    pre_x = x.copy()
-    high_acc = np.zeros_like(x, dtype=np.float32)
-
+    masks: List[torch.Tensor] = []
     for k in k_list:
-        # Same mask rule as FBM._precompute_masks: freq_dist < 0.5 / k
-        mask = (freq_dist < (0.5 / k + 1e-8)).astype(np.float32)
-        low_part = np.fft.irfftn(x_fft * mask, s=(D, H, W), axes=(0, 1, 2), norm='ortho').astype(np.float32)
+        # same threshold rule: freq_dist < 0.5 / k
+        m = (freq_dist < (0.5 / float(k) + 1e-8)).float()
+        masks.append(m)
+
+    pre_x = x.clone()
+    high_acc = torch.zeros_like(x)
+    high_parts: List[np.ndarray] = []
+
+    for m in masks:
+        # 低频部分：x_fft * mask -> irfftn
+        low_part = torch.fft.irfftn(x_fft * m, s=(D, H, W), dim=(-3, -2, -1), norm="ortho").float()
+        # 高频残差：当前 pre_x 减去这一轮的低频
         high_part = pre_x - low_part
         pre_x = low_part
-        high_acc += high_part
+        high_acc = high_acc + high_part
+        high_parts.append(high_part.cpu().numpy().astype(np.float32))
 
-    return pre_x, high_acc
+    low_cum = pre_x.cpu().numpy().astype(np.float32)
+    high_acc_np = high_acc.cpu().numpy().astype(np.float32)
+    return low_cum, high_acc_np, high_parts
 
 
 def visualize_frequency_bands(
@@ -748,6 +766,15 @@ def main():
                 seg=seg_pred,
                 edge_f0=edge_pred_f0,
                 edge_f1=edge_pred_f1,
+            )
+
+        # 新增：频带分解可视化
+        if getattr(args, "do_fd_vis", False) and patch_sz is not None:
+            visualize_fbm_progressive_from_arrays(
+                args.output_dir,
+                args.case_id + "_patch" if patch_sz is not None else args.case_id,
+                image,
+                k_list=(2, 4, 8),
             )
 
 
