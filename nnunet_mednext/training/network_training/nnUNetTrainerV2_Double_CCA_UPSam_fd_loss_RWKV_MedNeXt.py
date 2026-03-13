@@ -83,7 +83,7 @@ class nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt(nnUNetTrainerV2_Opti
     """
 
     def __init__(self, *args, edge_loss_weight_f0: float = 0.4, edge_loss_weight_f1: float = 0.2, **kwargs):
-        kwargs["fp16"] = False
+
         self.edge_loss_weight_f0 = edge_loss_weight_f0
         self.edge_loss_weight_f1 = edge_loss_weight_f1
         # 调试计数器，仅用于在线评估时输出 shape 信息
