@@ -47,12 +47,38 @@ class Double_CCA_UPSam_fd_RWKV_MedNeXt(SegmentationNetwork):
 
 
 class nnUNetTrainerV2_Double_CCA_UPSam_fd_RWKV_MedNeXt(nnUNetTrainerV2_Optim_and_LR):
-    """nnUNet Trainer using Double_CCA_UPSam_fd_RWKV_MedNeXt as the backbone."""
+    """nnUNet Trainer using Double_CCA_UPSam_fd_RWKV_MedNeXt as the backbone.
 
-    def __init__(self, *args, **kwargs):
-        # 该 RWKV 变体同样在 fp16 下较容易数值不稳定，这里强制使用 fp32 训练
-        kwargs["fp16"] = False
-        super().__init__(*args, **kwargs)
+    We enforce fp32 (fp16=False) via an explicit __init__ signature so that
+    fp16 is only ever passed once down the inheritance chain.
+    """
+
+    def __init__(
+        self,
+        plans_file,
+        fold,
+        output_folder=None,
+        dataset_directory=None,
+        batch_dice=True,
+        stage=None,
+        unpack_data=True,
+        deterministic=True,
+        fp16: bool = False,
+        sample_by_frequency: bool = False,
+    ):
+        # 不再通过 kwargs 注入 fp16，避免与 checkpoint init 中的位置参数冲突
+        super().__init__(
+            plans_file,
+            fold,
+            output_folder=output_folder,
+            dataset_directory=dataset_directory,
+            batch_dice=batch_dice,
+            stage=stage,
+            unpack_data=unpack_data,
+            deterministic=deterministic,
+            fp16=fp16,
+            sample_by_frequency=sample_by_frequency,
+        )
         # unify max epochs as in your other custom trainers
         self.max_epochs = 300
         if hasattr(self, "max_num_epochs"):
