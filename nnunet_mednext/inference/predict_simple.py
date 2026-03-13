@@ -198,7 +198,7 @@ def main():
         predict_from_folder(model_folder_name, input_folder, lowres_output_folder, folds, False,
                             num_threads_preprocessing, num_threads_nifti_save, None, part_id, num_parts, not disable_tta,
                             overwrite_existing=overwrite_existing, mode=mode, overwrite_all_in_gpu=all_in_gpu,
-                            mixed_precision=not args.disable_mixed_precision,
+                            mixed_precision=None,
                             step_size=step_size)
         lowres_segmentations = lowres_output_folder
         torch.cuda.empty_cache()
@@ -217,7 +217,7 @@ def main():
     predict_from_folder(model_folder_name, input_folder, output_folder, folds, save_npz, num_threads_preprocessing,
                         num_threads_nifti_save, lowres_segmentations, part_id, num_parts, not disable_tta,
                         overwrite_existing=overwrite_existing, mode=mode, overwrite_all_in_gpu=all_in_gpu,
-                        mixed_precision=not args.disable_mixed_precision,
+                        mixed_precision=None,
                         step_size=step_size, checkpoint_name=args.chk)
 
 

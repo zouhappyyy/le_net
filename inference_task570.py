@@ -11,9 +11,13 @@ def build_args_list(
     trainer_class_name: str,
     plans_identifier: str,
     fold: int,
-    checkpoint: str = "model_best",
     disable_tta: bool = True,
 ) -> list:
+    """Build argument list for predict_simple without explicit checkpoint override.
+
+    We deliberately do NOT pass any checkpoint-related flags here so that
+    predict_simple.py uses its internal default (typically model_best).
+    """
     args = [
         "-i",
         input_dir,
@@ -29,8 +33,6 @@ def build_args_list(
         plans_identifier,
         "-f",
         str(fold),
-        "--chk",
-        checkpoint,
     ]
     if disable_tta:
         args.append("--disable_tta")
@@ -75,16 +77,12 @@ def run_inference_for_all_models(
             trainer_class_name=trainer,
             plans_identifier=plans,
             fold=fold,
-            checkpoint="model_best",
             disable_tta=True,
         )
-        # predict_simple.main() expects to read sys.argv; easier is to spawn as module from shell.
-        # Here we just print the equivalent command for reference.
         cmd_str = "python -m nnunet_mednext.inference.predict_simple " + " ".join(
             f'"{a}"' if " " in a else a for a in argv
         )
         print(f"[CMD] {cmd_str}")
-        # Delegating actual execution to shell scripts for clarity.
 
 
 def main():
