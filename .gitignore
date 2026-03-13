@@ -111,3 +111,5 @@ ENV/
 *.model
 
 /.github/
+/val_vis_all/
+/val_vis_combined/

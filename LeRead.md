@@ -27,7 +27,7 @@ nohup mednextv1_train 3d_fullres nnUNetTrainerV2_Double_RWKV_MedNeXt 530 1 -p nn
 nohup mednextv1_train 3d_fullres nnUNetTrainerV2_Double_UpSam_RWKV_MedNeXt 530 1 -p nnUNetPlansv2.1_trgSp_1x1x1_rwkv > ./log/le/rwkv_up_task530_fold1_train.log 2>&1 &
 nohup mednextv1_train 3d_fullres nnUNetTrainerV2_Double_CCA_UPSam_RWKV_MedNeXt 530 1 -p nnUNetPlansv2.1_trgSp_1x1x1_rwkv > ./log/le/rwkv_db_cca_up_task530_fold1_train.log 2>&1 &
 nohup mednextv1_train 3d_fullres nnUNetTrainerV2_Double_CCA_UPSam_fd_RWKV_MedNeXt 530 1 -p nnUNetPlansv2.1_trgSp_1x1x1_rwkv > ./log/le/rwkv_cca_up_fd_task530_fold1_train.log 2>&1 &
-nohup mednextv1_train 3d_fullres nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt 601 0 -p nnUNetPlansv2.1_trgSp_1x1x1 > ./log/le/rwkv_db_cca_up_fd_loss_task601_fold0_train.log 2>&1 &
+nohup mednextv1_train 3d_fullres nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt 530 1 -p nnUNetPlansv2.1_trgSp_1x1x1 > ./log/le/rwkv_db_cca_up_fd_loss_task601_fold0_train.log 2>&1 &
 nohup mednextv1_train 3d_fullres nnUNetTrainerV2_Double_RWKV_MedNeXt 530 0 -p nnUNetPlansv2.1_trgSp_1x1x1_rwkv > ./log/le_db_rwkv_task530_fold0_train.log 2>&1 &
 nohup mednextv1_train 3d_fullres nnUNetTrainerV2_Double_RWKV_MedNeXt 530 1 -p nnUNetPlansv2.1_trgSp_1x1x1_rwkv > ./log/le_db_rwkv_task530_fold1_b4c16_train.log 2>&1 &
 
@@ -143,3 +143,12 @@ python visualize_val_overlay.py batch \
   --output_dir "./val_vis_all" \
   --alpha 0.6 \
 --save_gt
+
+
+新测试集的路径 
+/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_raw_data/Task570_EsoTJ83/imagesTr
+/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_raw_data/Task570_EsoTJ83/labelsTr
+三个模型的类名 taskid 折数 plans
+nnUNetTrainerV2_Double_CCA_UPSam_fd_RWKV_MedNeXt 530 1 -p nnUNetPlansv2.1_trgSp_1x1x1_rwkv
+nnUNetTrainerV2_MedNeXt_S_kernel3 530 1 -p nnUNetPlansv2.1_trgSp_1x1x1_rwkv
+nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt 530 1 -p nnUNetPlansv2.1_trgSp_1x1x1
