@@ -141,4 +141,5 @@ python visualize_val_overlay.py batch \
   --model_names "MedNeXt_S" "RWKV_fd_loss" "RWKV_fd" \
   --fold 1 \
   --output_dir "./val_vis_all" \
-  --alpha 0.6
+  --alpha 0.6 \
+--save_gt

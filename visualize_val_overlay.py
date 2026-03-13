@@ -54,8 +54,9 @@ def visualize_case_overlay(
     axis: str = "z",
     slices: Optional[List[int]] = None,
     name_prefix: str = "",
+    save_gt: bool = False,
 ) -> List[Dict[str, object]]:
-    """Visualize overlay of original image and prediction for a single case.
+    """Visualize overlay of original image, prediction, and optional GT for a single case.
 
     data_root: directory with preprocessed stage0 .npy volumes
     dataset_directory: nnUNet dataset directory (contains gt_segmentations)
@@ -66,18 +67,16 @@ def visualize_case_overlay(
     axis: for slice mode, one of {"z", "y", "x"}
     slices: optional list of slice indices; if None, use middle slice
     name_prefix: optional string prefix to prepend in filename (e.g. fold-modelname)
+    save_gt: if True, also export GT overlay images alongside predictions.
 
     Returns a list of dicts with information about generated images.
     """
     os.makedirs(output_dir, exist_ok=True)
     results: List[Dict[str, object]] = []
 
-    # Load preprocessed image and GT (for potential future use / sanity check)
     image, gt = _extract_case_data(data_root, case_id, dataset_directory)
-    # image: [C, D, H, W], gt: [1, D, H, W]
     gt = gt[0]
 
-    # Find prediction nifti
     pred_path = None
     for ext in (".nii.gz", ".nii"):
         cand = os.path.join(pred_folder, f"{case_id}{ext}")
@@ -87,14 +86,11 @@ def visualize_case_overlay(
     if pred_path is None:
         raise FileNotFoundError(f"Could not find prediction for case {case_id} in {pred_folder}")
 
-    pred = _load_pred_nifti(pred_path)  # [D, H, W] (Z, Y, X)
+    pred = _load_pred_nifti(pred_path)
 
-    # Align shapes
     image, pred = _match_shapes(image, pred)
-    # Also align GT in case sizes differ
     _, gt = _match_shapes(image, gt)
 
-    # Select slices
     _, D, H, W = image.shape
 
     if mode == "slice":
@@ -109,44 +105,72 @@ def visualize_case_overlay(
                 slices = [W // 2]
 
         for s in slices:
+            # --- build slices for pred & gt ---
             if axis == "z":
                 if not (0 <= s < D):
                     continue
                 img_slice = image[0, s]
                 pred_slice = pred[s]
+                gt_slice = gt[s]
             elif axis == "y":
                 if not (0 <= s < H):
                     continue
                 img_slice = image[0, :, s, :]
                 pred_slice = pred[:, s, :]
+                gt_slice = gt[:, s, :]
             else:  # x
                 if not (0 <= s < W):
                     continue
                 img_slice = image[0, :, :, s]
                 pred_slice = pred[:, :, s]
+                gt_slice = gt[:, :, s]
 
-            overlay = generate_overlay(img_slice, pred_slice, overlay_intensity=alpha)
+            # --- prediction overlay ---
+            overlay_pred = generate_overlay(img_slice, pred_slice, overlay_intensity=alpha)
 
-            # Build filename: optional prefix + caseid-axis-slice
-            # Actual naming pattern for batch mode is controlled at caller level.
-            base_name = f"{case_id}_axis-{axis}_slice-{s}.png"
+            base_name_pred = f"{case_id}_axis-{axis}_slice-{s}_pred.png"
             if name_prefix:
-                out_name = f"{name_prefix}_{base_name}"
+                out_name_pred = f"{name_prefix}_{base_name_pred}"
             else:
-                out_name = base_name
+                out_name_pred = base_name_pred
 
-            out_path = os.path.join(output_dir, out_name)
-            plt.imsave(out_path, overlay)
-            print(f"Saved overlay to: {out_path}")
+            out_path_pred = os.path.join(output_dir, out_name_pred)
+            plt.imsave(out_path_pred, overlay_pred)
+            print(f"Saved pred overlay to: {out_path_pred}")
             results.append(
                 {
                     "case_id": case_id,
                     "axis": axis,
                     "slice": s,
-                    "path": out_path,
+                    "path": out_path_pred,
                     "pred_folder": pred_folder,
+                    "type": "pred",
                 }
             )
+
+            # --- GT overlay ---
+            if save_gt:
+                overlay_gt = generate_overlay(img_slice, gt_slice, overlay_intensity=alpha)
+
+                base_name_gt = f"{case_id}_axis-{axis}_slice-{s}_gt.png"
+                if name_prefix:
+                    out_name_gt = f"{name_prefix}_{base_name_gt}"
+                else:
+                    out_name_gt = base_name_gt
+
+                out_path_gt = os.path.join(output_dir, out_name_gt)
+                plt.imsave(out_path_gt, overlay_gt)
+                print(f"Saved GT overlay to: {out_path_gt}")
+                results.append(
+                    {
+                        "case_id": case_id,
+                        "axis": axis,
+                        "slice": s,
+                        "path": out_path_gt,
+                        "pred_folder": pred_folder,
+                        "type": "gt",
+                    }
+                )
 
     elif mode == "mip":
         # Simple 3-view MIP overlay
@@ -296,6 +320,7 @@ def _build_argparser() -> argparse.ArgumentParser:
         default=None,
         help="Slice indices to visualize. If omitted, middle slice along each axis is used.",
     )
+    p_batch.add_argument("--save_gt", action="store_true", help="Also export GT overlays for each slice")
 
     # default: preserve old behavior if no subcommand is specified
     parser.add_argument("--data_root", type=str, help="[legacy] Folder with preprocessed stage0 .npy volumes")
@@ -376,6 +401,7 @@ def _run_batch(
     output_dir: str,
     alpha: float,
     slices: Optional[List[int]],
+    save_gt: bool,
 ) -> None:
     # normalize model names
     if model_names is not None and len(model_names) != len(pred_folders):
@@ -395,15 +421,9 @@ def _run_batch(
         print(f"[INFO] Processing model {model_name} (fold {fold}) with {len(case_ids)} cases from {pred_folder}")
 
         for case_id in case_ids:
-            # three axes: z, y, x
             for axis in ("z", "y", "x"):
-                # naming pattern: fold-id-axis-sliceindex-modelname
-                # We pass a prefix here and then later adjust filename pattern.
-                # To obey exact requirement we can override naming here instead of using prefix.
-                # So we call visualize_case_overlay with a dummy prefix and then rename.
                 try:
-                    # use visualize_case_overlay but ignore its internal filename, we will customize via prefix
-                    _ = visualize_case_overlay(
+                    results = visualize_case_overlay(
                         data_root=data_root,
                         dataset_directory=dataset_directory,
                         pred_folder=pred_folder,
@@ -413,8 +433,18 @@ def _run_batch(
                         mode="slice",
                         axis=axis,
                         slices=slices,
-                        name_prefix=f"fold-{fold}_model-{model_name}",
+                        name_prefix=None,
+                        save_gt=save_gt,
                     )
+                    # rename files to pattern: fold-id-axis-sliceindex-modelname[-type]
+                    for item in results:
+                        slice_idx = item["slice"]
+                        img_type = item.get("type", "pred")
+                        old_path = item["path"]
+                        ext = os.path.splitext(old_path)[1]
+                        new_name = f"{fold}-{case_id}-{axis}-{slice_idx}-{model_name}-{img_type}{ext}"
+                        new_path = os.path.join(output_dir, new_name)
+                        os.replace(old_path, new_path)
                 except Exception as e:
                     print(f"[ERROR] Failed on case {case_id}, axis {axis}, model {model_name}: {e}")
 
@@ -446,6 +476,7 @@ if __name__ == "__main__":
             output_dir=args.output_dir,
             alpha=args.alpha,
             slices=args.slices,
+            save_gt=getattr(args, "save_gt", False),
         )
     else:
         # legacy behavior: single-case mode with top-level args
