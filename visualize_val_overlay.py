@@ -1,6 +1,6 @@
 import os
 import argparse
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict
 
 import numpy as np
 import nibabel as nib
@@ -53,7 +53,8 @@ def visualize_case_overlay(
     mode: str = "slice",
     axis: str = "z",
     slices: Optional[List[int]] = None,
-) -> None:
+    name_prefix: str = "",
+) -> List[Dict[str, object]]:
     """Visualize overlay of original image and prediction for a single case.
 
     data_root: directory with preprocessed stage0 .npy volumes
@@ -64,8 +65,12 @@ def visualize_case_overlay(
     mode: "slice" (single or multiple 2D slices) or "mip" (3D MIP views)
     axis: for slice mode, one of {"z", "y", "x"}
     slices: optional list of slice indices; if None, use middle slice
+    name_prefix: optional string prefix to prepend in filename (e.g. fold-modelname)
+
+    Returns a list of dicts with information about generated images.
     """
     os.makedirs(output_dir, exist_ok=True)
+    results: List[Dict[str, object]] = []
 
     # Load preprocessed image and GT (for potential future use / sanity check)
     image, gt = _extract_case_data(data_root, case_id, dataset_directory)
@@ -90,7 +95,7 @@ def visualize_case_overlay(
     _, gt = _match_shapes(image, gt)
 
     # Select slices
-    C, D, H, W = image.shape
+    _, D, H, W = image.shape
 
     if mode == "slice":
         if axis not in ("z", "y", "x"):
@@ -121,10 +126,27 @@ def visualize_case_overlay(
                 pred_slice = pred[:, :, s]
 
             overlay = generate_overlay(img_slice, pred_slice, overlay_intensity=alpha)
-            out_name = f"{case_id}_axis-{axis}_slice-{s}.png"
+
+            # Build filename: optional prefix + caseid-axis-slice
+            # Actual naming pattern for batch mode is controlled at caller level.
+            base_name = f"{case_id}_axis-{axis}_slice-{s}.png"
+            if name_prefix:
+                out_name = f"{name_prefix}_{base_name}"
+            else:
+                out_name = base_name
+
             out_path = os.path.join(output_dir, out_name)
             plt.imsave(out_path, overlay)
             print(f"Saved overlay to: {out_path}")
+            results.append(
+                {
+                    "case_id": case_id,
+                    "axis": axis,
+                    "slice": s,
+                    "path": out_path,
+                    "pred_folder": pred_folder,
+                }
+            )
 
     elif mode == "mip":
         # Simple 3-view MIP overlay
@@ -158,42 +180,289 @@ def visualize_case_overlay(
         axes[2].axis("off")
 
         plt.tight_layout()
-        out_path = os.path.join(output_dir, f"{case_id}_mip.png")
+        base_name = f"{case_id}_mip.png"
+        if name_prefix:
+            out_name = f"{name_prefix}_{base_name}"
+        else:
+            out_name = base_name
+        out_path = os.path.join(output_dir, out_name)
         fig.savefig(out_path, dpi=200)
         plt.close(fig)
         print(f"Saved MIP overlays to: {out_path}")
+        results.append(
+            {
+                "case_id": case_id,
+                "axis": "mip",
+                "slice": None,
+                "path": out_path,
+                "pred_folder": pred_folder,
+            }
+        )
 
     else:
         raise ValueError("mode must be 'slice' or 'mip'")
 
+    return results
+
 
 def _build_argparser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Visualize overlay of validation predictions and original images")
-    parser.add_argument("--data_root", type=str, required=True, help="Folder with preprocessed stage0 .npy volumes")
-    parser.add_argument("--dataset_directory", type=str, required=True, help="nnUNet dataset directory (contains gt_segmentations)")
-    parser.add_argument("--pred_folder", type=str, required=True, help="Folder with prediction NIfTI files (e.g. validation_raw_postprocessed)")
-    parser.add_argument("--case_id", type=str, required=True, help="Case id to visualize (e.g. ESO_TJ_60011222468)")
-    parser.add_argument("--output_dir", type=str, required=True, help="Where to save output PNGs")
-    parser.add_argument("--alpha", type=float, default=0.6, help="Overlay intensity (alpha) for segmentation")
-    parser.add_argument("--mode", type=str, choices=["slice", "mip"], default="slice", help="Visualization mode: slice or mip")
-    parser.add_argument("--axis", type=str, choices=["z", "y", "x"], default="z", help="Slice axis for slice mode")
-    parser.add_argument("--slices", type=int, nargs="*", default=None, help="Slice indices to visualize (if empty, use middle slice)")
+    parser = argparse.ArgumentParser(
+        description="Visualize overlay of validation predictions and original images (single case or batch over models)",
+    )
+    subparsers = parser.add_subparsers(dest="command", required=False)
+
+    # single-case mode (backwards compatible)
+    p_single = subparsers.add_parser("single", help="Visualize one case")
+    p_single.add_argument("--data_root", type=str, required=True, help="Folder with preprocessed stage0 .npy volumes")
+    p_single.add_argument(
+        "--dataset_directory",
+        type=str,
+        required=True,
+        help="nnUNet dataset directory (contains gt_segmentations)",
+    )
+    p_single.add_argument(
+        "--pred_folder",
+        type=str,
+        required=True,
+        help="Folder with prediction NIfTI files (e.g. validation_raw_postprocessed)",
+    )
+    p_single.add_argument("--case_id", type=str, required=True, help="Case id to visualize (e.g. ESO_TJ_60011222468)")
+    p_single.add_argument("--output_dir", type=str, required=True, help="Where to save output PNGs")
+    p_single.add_argument("--alpha", type=float, default=0.6, help="Overlay intensity (alpha) for segmentation")
+    p_single.add_argument(
+        "--mode",
+        type=str,
+        choices=["slice", "mip"],
+        default="slice",
+        help="Visualization mode: slice or mip",
+    )
+    p_single.add_argument(
+        "--axis",
+        type=str,
+        choices=["z", "y", "x"],
+        default="z",
+        help="Slice axis for slice mode",
+    )
+    p_single.add_argument(
+        "--slices",
+        type=int,
+        nargs="*",
+        default=None,
+        help="Slice indices to visualize (if empty, use middle slice)",
+    )
+
+    # batch mode: multiple models, all cases, all three axes
+    p_batch = subparsers.add_parser("batch", help="Batch visualize all cases for multiple models")
+    p_batch.add_argument("--data_root", type=str, required=True, help="Folder with preprocessed stage0 .npy volumes")
+    p_batch.add_argument(
+        "--dataset_directory",
+        type=str,
+        required=True,
+        help="nnUNet dataset directory (contains gt_segmentations)",
+    )
+    p_batch.add_argument(
+        "--pred_folders",
+        type=str,
+        nargs="+",
+        required=True,
+        help=(
+            "List of prediction folders (e.g. different models' validation_raw_postprocessed). "
+            "Model name will be inferred from the folder path unless --model_names is given."
+        ),
+    )
+    p_batch.add_argument(
+        "--model_names",
+        type=str,
+        nargs="*",
+        default=None,
+        help=(
+            "Optional explicit model names aligned with pred_folders. "
+            "If omitted, will take the trainer directory name from each pred_folder path."
+        ),
+    )
+    p_batch.add_argument(
+        "--fold", type=int, required=True, help="Fold index used in filename prefix (e.g. 0/1/2/3/4)",
+    )
+    p_batch.add_argument(
+        "--output_dir", type=str, required=True, help="Base folder where visualization PNGs will be stored",
+    )
+    p_batch.add_argument(
+        "--alpha", type=float, default=0.6, help="Overlay intensity (alpha) for segmentation",
+    )
+    p_batch.add_argument(
+        "--slices",
+        type=int,
+        nargs="*",
+        default=None,
+        help="Slice indices to visualize. If omitted, middle slice along each axis is used.",
+    )
+
+    # default: preserve old behavior if no subcommand is specified
+    parser.add_argument("--data_root", type=str, help="[legacy] Folder with preprocessed stage0 .npy volumes")
+    parser.add_argument(
+        "--dataset_directory",
+        type=str,
+        help="[legacy] nnUNet dataset directory (contains gt_segmentations)",
+    )
+    parser.add_argument(
+        "--pred_folder",
+        type=str,
+        help="[legacy] Folder with prediction NIfTI files (e.g. validation_raw_postprocessed)",
+    )
+    parser.add_argument("--case_id", type=str, help="[legacy] Case id to visualize (e.g. ESO_TJ_60011222468)")
+    parser.add_argument("--output_dir", type=str, help="[legacy] Where to save output PNGs")
+    parser.add_argument("--alpha", type=float, default=0.6, help="[legacy] Overlay intensity (alpha) for segmentation")
+    parser.add_argument(
+        "--mode",
+        type=str,
+        choices=["slice", "mip"],
+        default="slice",
+        help="[legacy] Visualization mode: slice or mip",
+    )
+    parser.add_argument(
+        "--axis",
+        type=str,
+        choices=["z", "y", "x"],
+        default="z",
+        help="[legacy] Slice axis for slice mode",
+    )
+    parser.add_argument(
+        "--slices",
+        type=int,
+        nargs="*",
+        default=None,
+        help="[legacy] Slice indices to visualize (if empty, use middle slice)",
+    )
+
     return parser
+
+
+def _infer_model_name_from_pred_folder(pred_folder: str) -> str:
+    """Infer a model name from the prediction folder path.
+
+    For typical nnUNet layout, pred_folder is something like:
+      .../TaskXXX/TrainerName__Plans/fold_1/validation_raw_postprocessed
+    We take the TrainerName__Plans part as model name by default.
+    """
+    parts = os.path.normpath(pred_folder).split(os.sep)
+    if len(parts) < 3:
+        return os.path.basename(pred_folder)
+    # ... fold_x / validation_raw_postprocessed / Trainer__Plans / Task...
+    # assume trainer dir is two levels above pred_folder
+    trainer_dir = parts[-3]
+    return trainer_dir
+
+
+def _collect_case_ids_from_pred_folder(pred_folder: str) -> List[str]:
+    """List unique case_ids from NIfTI files in prediction folder."""
+    if not os.path.isdir(pred_folder):
+        raise FileNotFoundError(f"Prediction folder not found: {pred_folder}")
+    ids = []
+    for fn in os.listdir(pred_folder):
+        if fn.endswith(".nii") or fn.endswith(".nii.gz"):
+            case_id = fn.split(".")[0]
+            if case_id not in ids:
+                ids.append(case_id)
+    ids.sort()
+    return ids
+
+
+def _run_batch(
+    data_root: str,
+    dataset_directory: str,
+    pred_folders: List[str],
+    model_names: Optional[List[str]],
+    fold: int,
+    output_dir: str,
+    alpha: float,
+    slices: Optional[List[int]],
+) -> None:
+    # normalize model names
+    if model_names is not None and len(model_names) != len(pred_folders):
+        raise ValueError("If model_names is provided, its length must match pred_folders")
+
+    if model_names is None:
+        model_names = [_infer_model_name_from_pred_folder(p) for p in pred_folders]
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    for pred_folder, model_name in zip(pred_folders, model_names):
+        case_ids = _collect_case_ids_from_pred_folder(pred_folder)
+        if not case_ids:
+            print(f"[WARN] No prediction files found in {pred_folder}, skip")
+            continue
+
+        print(f"[INFO] Processing model {model_name} (fold {fold}) with {len(case_ids)} cases from {pred_folder}")
+
+        for case_id in case_ids:
+            # three axes: z, y, x
+            for axis in ("z", "y", "x"):
+                # naming pattern: fold-id-axis-sliceindex-modelname
+                # We pass a prefix here and then later adjust filename pattern.
+                # To obey exact requirement we can override naming here instead of using prefix.
+                # So we call visualize_case_overlay with a dummy prefix and then rename.
+                try:
+                    # use visualize_case_overlay but ignore its internal filename, we will customize via prefix
+                    _ = visualize_case_overlay(
+                        data_root=data_root,
+                        dataset_directory=dataset_directory,
+                        pred_folder=pred_folder,
+                        case_id=case_id,
+                        output_dir=output_dir,
+                        alpha=alpha,
+                        mode="slice",
+                        axis=axis,
+                        slices=slices,
+                        name_prefix=f"fold-{fold}_model-{model_name}",
+                    )
+                except Exception as e:
+                    print(f"[ERROR] Failed on case {case_id}, axis {axis}, model {model_name}: {e}")
 
 
 if __name__ == "__main__":
     parser = _build_argparser()
     args = parser.parse_args()
 
-    visualize_case_overlay(
-        data_root=args.data_root,
-        dataset_directory=args.dataset_directory,
-        pred_folder=args.pred_folder,
-        case_id=args.case_id,
-        output_dir=args.output_dir,
-        alpha=args.alpha,
-        mode=args.mode,
-        axis=args.axis,
-        slices=args.slices,
-    )
+    # prioritize subcommands if given
+    if getattr(args, "command", None) == "single":
+        visualize_case_overlay(
+            data_root=args.data_root,
+            dataset_directory=args.dataset_directory,
+            pred_folder=args.pred_folder,
+            case_id=args.case_id,
+            output_dir=args.output_dir,
+            alpha=args.alpha,
+            mode=args.mode,
+            axis=args.axis,
+            slices=args.slices,
+        )
+    elif getattr(args, "command", None) == "batch":
+        _run_batch(
+            data_root=args.data_root,
+            dataset_directory=args.dataset_directory,
+            pred_folders=args.pred_folders,
+            model_names=args.model_names,
+            fold=args.fold,
+            output_dir=args.output_dir,
+            alpha=args.alpha,
+            slices=args.slices,
+        )
+    else:
+        # legacy behavior: single-case mode with top-level args
+        if not (args.data_root and args.dataset_directory and args.pred_folder and args.case_id and args.output_dir):
+            parser.error(
+                "For legacy single-case mode, --data_root, --dataset_directory, "
+                "--pred_folder, --case_id and --output_dir must be provided.",
+            )
+        visualize_case_overlay(
+            data_root=args.data_root,
+            dataset_directory=args.dataset_directory,
+            pred_folder=args.pred_folder,
+            case_id=args.case_id,
+            output_dir=args.output_dir,
+            alpha=args.alpha,
+            mode=args.mode,
+            axis=args.axis,
+            slices=args.slices,
+        )
 
