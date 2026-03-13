@@ -43,6 +43,10 @@ class nnUNetTrainerV2_Optim_and_LR(nnUNetTrainerV2):
 
 class nnUNetTrainerV2_MedNeXt_S_kernel3(nnUNetTrainerV2_Optim_and_LR):   
     def __init__(self, *args, **kwargs):
+        # 统一在这里控制 MedNeXt 的精度行为
+        if "fp16" not in kwargs:
+            kwargs["fp16"] = False  # 默认使用 FP32
+
         super().__init__(*args, **kwargs)
         # unify max epochs as in your other custom trainers
         self.max_epochs = 300
