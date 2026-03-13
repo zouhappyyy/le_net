@@ -117,3 +117,13 @@ python visualize_fd_edge_and_ds.py run_model \
   --output_dir "/home/fangzheng/zoule/mednext/fd_bands_vis" \
   --patch_size 64 \
   --do_fd_vis
+
+
+python visualize_val_overlay.py \
+  --data_root "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task530_EsoTJ_30pct/nnUNetData_plans_v2.1_trgSp_1x1x1_stage0" \
+  --dataset_directory "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task530_EsoTJ_30pct" \
+  --pred_folder "./ckpt/nnUNet/3d_fullres/Task530_EsoTJ_30pct/nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt__nnUNetPlansv2.1_trgSp_1x1x1_rwkv/fold_1/validation_raw_postprocessed" \
+  --case_id "ESO_TJ_60011222468" \
+  --output_dir "./val_vis" \
+  --mode "mip" \
+  --alpha 0.6
