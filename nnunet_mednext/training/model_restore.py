@@ -89,10 +89,13 @@ def restore_model(pkl_file, checkpoint=None, train=False, fp16=None):
 
     trainer = tr(*init)
 
-    # We can hack fp16 overwriting into the trainer without changing the init arguments because nothing happens with
-    # fp16 in the init, it just saves it to a member variable
-    if fp16 is not None:
-        trainer.fp16 = fp16
+    # We intentionally do NOT override trainer.fp16 here to avoid conflicts
+    # with custom trainers that already receive fp16 via their init args.
+    # If you need to force fp32/fp16, configure it in the trainer class itself
+    # (for example, by setting kwargs["fp16"] = False in its __init__) or in
+    # the original training configuration.
+    # if fp16 is not None:
+    #     trainer.fp16 = fp16
 
     trainer.process_plans(info['plans'])
     if checkpoint is not None:
@@ -137,7 +140,8 @@ def load_model_and_checkpoint_files(folder, folds=None, mixed_precision=None, ch
     else:
         raise ValueError("Unknown value for folds. Type: %s. Expected: list of int, int, str or None", str(type(folds)))
 
-    trainer = restore_model(join(folds[0], "%s.model.pkl" % checkpoint_name), fp16=mixed_precision)
+    # Ignore mixed_precision here to avoid passing fp16 twice to custom trainers.
+    trainer = restore_model(join(folds[0], "%s.model.pkl" % checkpoint_name))
     trainer.output_folder = folder
     trainer.output_folder_base = folder
     trainer.update_fold(0)
