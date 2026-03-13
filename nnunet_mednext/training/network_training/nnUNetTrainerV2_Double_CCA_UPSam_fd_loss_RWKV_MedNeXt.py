@@ -82,13 +82,44 @@ class nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt(nnUNetTrainerV2_Opti
     通过 MultipleOutputWithEdgeLoss 将 seg deep supervision loss 与两层边界 BCE loss 统一封装。
     """
 
-    def __init__(self, *args, edge_loss_weight_f0: float = 0.4, edge_loss_weight_f1: float = 0.2, **kwargs):
+    def __init__(
+        self,
+        plans_file,
+        fold,
+        output_folder=None,
+        dataset_directory=None,
+        batch_dice=True,
+        stage=None,
+        unpack_data=True,
+        deterministic=True,
+        fp16: bool = False,
+        sample_by_frequency: bool = False,
+        edge_loss_weight_f0: float = 0.4,
+        edge_loss_weight_f1: float = 0.2,
+    ):
+        """Use explicit signature so fp16 is only passed once.
 
+        We fix fp16 default to False (fp32 inference/training) and avoid passing
+        a second fp16 via **kwargs, which previously caused
+        '__init__() got multiple values for argument fp16'.
+        """
         self.edge_loss_weight_f0 = edge_loss_weight_f0
         self.edge_loss_weight_f1 = edge_loss_weight_f1
         # 调试计数器，仅用于在线评估时输出 shape 信息
         self._online_eval_debug_calls = 0
-        super().__init__(*args, **kwargs)
+
+        super().__init__(
+            plans_file,
+            fold,
+            output_folder=output_folder,
+            dataset_directory=dataset_directory,
+            batch_dice=batch_dice,
+            stage=stage,
+            unpack_data=unpack_data,
+            deterministic=deterministic,
+            fp16=fp16,
+            sample_by_frequency=sample_by_frequency,
+        )
         self.max_epochs = 300
         if hasattr(self, "max_num_epochs"):
             self.max_num_epochs = 300
@@ -178,7 +209,6 @@ class nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt(nnUNetTrainerV2_Opti
                 self.online_eval_tp = []
                 self.online_eval_fp = []
                 self.online_eval_fn = []
-                self.online_eval_foreground_dc = []
 
             self.online_eval_tp.append(list(tp_hard.detach().cpu().numpy()))
             self.online_eval_fp.append(list(fp_hard.detach().cpu().numpy()))
