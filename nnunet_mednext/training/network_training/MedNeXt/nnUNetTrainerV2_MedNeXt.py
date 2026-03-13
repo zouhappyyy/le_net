@@ -21,7 +21,10 @@ class MedNeXt(MedNeXt_Orig, SegmentationNetwork):
 
 class nnUNetTrainerV2_Optim_and_LR(nnUNetTrainerV2):
 
-    def __init__(self, *args, **kwargs): 
+    def __init__(self, *args, **kwargs):
+        # 统一在 MedNeXt S kernel3 中使用 FP32：仅在上游未显式指定 fp16 时设置默认值
+        if "fp16" not in kwargs:
+            kwargs["fp16"] = False
         super().__init__(*args, **kwargs)
         self.initial_lr = 1e-3
 
@@ -43,9 +46,6 @@ class nnUNetTrainerV2_Optim_and_LR(nnUNetTrainerV2):
 
 class nnUNetTrainerV2_MedNeXt_S_kernel3(nnUNetTrainerV2_Optim_and_LR):   
     def __init__(self, *args, **kwargs):
-        # 统一在这里控制 MedNeXt 的精度行为
-        if "fp16" not in kwargs:
-            kwargs["fp16"] = False  # 默认使用 FP32
 
         super().__init__(*args, **kwargs)
         # unify max epochs as in your other custom trainers
