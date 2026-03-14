@@ -9,8 +9,8 @@ import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 
 from nnunet_mednext.utilities.overlay_plots import generate_overlay
-from visualize_fd_edge_and_ds import _extract_case_data
 
+# python visualize_val_overlay.py task570_default
 
 # Explicit mapping for Task570_EsoTJ83 models and their prediction folders on the Linux host
 MODELS_TASK570_EsoTJ83 = {
@@ -24,16 +24,63 @@ MODELS_TASK570_EsoTJ83 = {
     "UNet3D": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_predictions/Task570_EsoTJ83/UNet3DTrainer/preds",
 }
 
-# 默认的 Task570 可视化配置（所有参数都在代码中指定）
+# 默认的 Task570 可视化配置（使用 raw NIfTI: imagesTr / labelsTr）
 TASK570_DEFAULT_CONFIG = {
-    "data_root": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task570_EsoTJ_30pct/nnUNetData_plans_v2.1_trgSp_1x1x1_stage0",
-    "dataset_directory": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task570_EsoTJ_30pct",
+    "data_root": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_raw_data/Task570_EsoTJ83/imagesTr",  # imagesTr
+    "dataset_directory": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_raw_data/Task570_EsoTJ83/labelsTr",  # labelsTr
     "fold": 1,
     "output_dir": "./Task570_val_vis_all",
     "alpha": 0.6,
     "slices": None,  # None: 每个方向取中间层；也可以改成 [80, 100, ...]
     "save_gt": True,
 }
+
+
+def _extract_case_data_raw(
+    images_dir: str,
+    labels_dir: str,
+    case_id: str,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Load raw NIfTI image and label for a case_id.
+
+    images_dir: nnUNet_raw_data/.../imagesTr
+    labels_dir: nnUNet_raw_data/.../labelsTr
+
+    Returns:
+        image: [C, D, H, W]
+        gt:    [1, D, H, W]
+    """
+    # 图像文件: 优先 case_id_0000.nii.gz，其次 case_id.nii.gz
+    img_fn = os.path.join(images_dir, f"{case_id}_0000.nii.gz")
+    if not os.path.isfile(img_fn):
+        img_fn = os.path.join(images_dir, f"{case_id}.nii.gz")
+        if not os.path.isfile(img_fn):
+            raise FileNotFoundError(f"Cannot find image for case {case_id} in {images_dir}")
+
+    lbl_fn = os.path.join(labels_dir, f"{case_id}.nii.gz")
+    if not os.path.isfile(lbl_fn):
+        raise FileNotFoundError(f"Cannot find label for case {case_id} in {labels_dir}")
+
+    img = nib.load(img_fn).get_fdata()
+    lbl = nib.load(lbl_fn).get_fdata()
+
+    # 假设 NIfTI 为 [X, Y, Z] 或 [X, Y, Z, C]，转换到 [C, D, H, W]
+    if img.ndim == 3:
+        img = np.transpose(img, (2, 1, 0))  # [D, H, W]
+        img = img[None, ...]               # [1, D, H, W]
+    elif img.ndim == 4:
+        # [X, Y, Z, C] -> [C, D, H, W]
+        img = np.transpose(img, (3, 2, 1, 0))
+    else:
+        raise RuntimeError(f"Unexpected image ndim={img.ndim} for {img_fn}")
+
+    if lbl.ndim == 3:
+        lbl = np.transpose(lbl, (2, 1, 0))  # [D, H, W]
+        lbl = lbl[None, ...]               # [1, D, H, W]
+    else:
+        raise RuntimeError(f"Unexpected label ndim={lbl.ndim} for {lbl_fn}")
+
+    return img.astype(np.float32), lbl.astype(np.int16)
 
 
 def _load_pred_nifti(pred_path: str) -> np.ndarray:
@@ -84,8 +131,8 @@ def visualize_case_overlay(
 ) -> List[Dict[str, object]]:
     """Visualize overlay of original image, prediction, and optional GT for a single case.
 
-    data_root: directory with preprocessed stage0 .npy volumes
-    dataset_directory: nnUNet dataset directory (contains gt_segmentations)
+    data_root: directory with raw images (imagesTr)
+    dataset_directory: directory with raw labels (labelsTr)
     pred_folder: folder containing prediction nifti files (validation_raw or validation_raw_postprocessed)
     case_id: case identifier (e.g. ESO_TJ_60011222468)
     output_dir: where to save pngs
@@ -100,8 +147,9 @@ def visualize_case_overlay(
     os.makedirs(output_dir, exist_ok=True)
     results: List[Dict[str, object]] = []
 
-    image, gt = _extract_case_data(data_root, case_id, dataset_directory)
-    gt = gt[0]
+    # 从 raw NIfTI 读取图像和标签
+    image, gt = _extract_case_data_raw(data_root, dataset_directory, case_id)
+    # gt: [1, D, H, W]
 
     pred_path = None
     for ext in (".nii.gz", ".nii"):
