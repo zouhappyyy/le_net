@@ -152,3 +152,10 @@ python visualize_val_overlay.py batch \
 nnUNetTrainerV2_Double_CCA_UPSam_fd_RWKV_MedNeXt 530 1 -p nnUNetPlansv2.1_trgSp_1x1x1_rwkv
 nnUNetTrainerV2_MedNeXt_S_kernel3 530 1 -p nnUNetPlansv2.1_trgSp_1x1x1_rwkv
 nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt 530 1 -p nnUNetPlansv2.1_trgSp_1x1x1
+
+
+
+python convert_npz_to_npy.py \
+  --input_dir "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task570_EsoTJ83/nnUNetData_plans_v2.1_trgSp_1x1x1_stage0" \
+  --output_dir "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task570_EsoTJ83/nnUNetData_plans_v2.1_trgSp_1x1x1_stage0"
+   
