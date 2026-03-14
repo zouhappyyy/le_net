@@ -10,6 +10,30 @@ from nnunet_mednext.utilities.overlay_plots import generate_overlay
 from visualize_fd_edge_and_ds import _extract_case_data
 
 
+# Explicit mapping for Task570_EsoTJ83 models and their prediction folders on the Linux host
+MODELS_TASK570_EsoTJ83 = {
+    # 模型名: preds 目录
+    "BANet": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_predictions/Task570_EsoTJ83/BANetTrainerV2/preds",
+    "BGHNetV4": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_predictions/Task570_EsoTJ83/BGHNetV4Trainer/preds",
+    "MedNeXt": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_predictions/Task570_EsoTJ83/MedNeXt_S_kernel3/preds",
+    "nnUNet": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_predictions/Task570_EsoTJ83/nnUNetTrainerV2/preds",
+    "RWKV_fd": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_predictions/Task570_EsoTJ83/Double_CCA_UPSam_fd_RWKV/preds",
+    "RWKV_fd_loss": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_predictions/Task570_EsoTJ83/Double_CCA_UPSam_fd_loss_RWKV/preds",
+    "UNet3D": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_predictions/Task570_EsoTJ83/UNet3DTrainer/preds",
+}
+
+# 默认的 Task570 可视化配置（所有参数都在代码中指定）
+TASK570_DEFAULT_CONFIG = {
+    "data_root": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task570_EsoTJ_30pct/nnUNetData_plans_v2.1_trgSp_1x1x1_stage0",
+    "dataset_directory": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task570_EsoTJ_30pct",
+    "fold": 1,
+    "output_dir": "./val_vis_all_task570",
+    "alpha": 0.6,
+    "slices": None,  # None: 每个方向取中间层；也可以改成 [80, 100, ...]
+    "save_gt": True,
+}
+
+
 def _load_pred_nifti(pred_path: str) -> np.ndarray:
     """Load prediction nifti and return array in [Z, Y, X] order.
 
@@ -288,9 +312,10 @@ def _build_argparser() -> argparse.ArgumentParser:
         "--pred_folders",
         type=str,
         nargs="+",
-        required=True,
+        required=False,
         help=(
             "List of prediction folders (e.g. different models' validation_raw_postprocessed). "
+            "If omitted, the built-in MODELS_TASK570_EsoTJ83 mapping will be used. "
             "Model name will be inferred from the folder path unless --model_names is given."
         ),
     )
@@ -301,7 +326,7 @@ def _build_argparser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Optional explicit model names aligned with pred_folders. "
-            "If omitted, will take the trainer directory name from each pred_folder path."
+            "If omitted and pred_folders is also omitted, we will use the keys of MODELS_TASK570_EsoTJ83."
         ),
     )
     p_batch.add_argument(
@@ -321,6 +346,13 @@ def _build_argparser() -> argparse.ArgumentParser:
         help="Slice indices to visualize. If omitted, middle slice along each axis is used.",
     )
     p_batch.add_argument("--save_gt", action="store_true", help="Also export GT overlays for each slice")
+
+    # task570 default mode: use built-in config and model list
+    p_t570 = subparsers.add_parser(
+        "task570_default",
+        help="Use built-in Task570_EsoTJ83 config and model list to batch visualize all cases",
+    )
+    # 不需要额外参数，全部从 TASK570_DEFAULT_CONFIG / MODELS_TASK570_EsoTJ83 读取
 
     # default: preserve old behavior if no subcommand is specified
     parser.add_argument("--data_root", type=str, help="[legacy] Folder with preprocessed stage0 .npy volumes")
@@ -395,7 +427,7 @@ def _collect_case_ids_from_pred_folder(pred_folder: str) -> List[str]:
 def _run_batch(
     data_root: str,
     dataset_directory: str,
-    pred_folders: List[str],
+    pred_folders: List[str] | None,
     model_names: Optional[List[str]],
     fold: int,
     output_dir: str,
@@ -403,6 +435,13 @@ def _run_batch(
     slices: Optional[List[int]],
     save_gt: bool,
 ) -> None:
+    # If no pred_folders provided, fall back to the explicit mapping for Task570_EsoTJ83
+    if not pred_folders:
+        pred_folders = list(MODELS_TASK570_EsoTJ83.values())
+        # if model_names not given, use the keys of the mapping
+        if model_names is None or len(model_names) == 0:
+            model_names = list(MODELS_TASK570_EsoTJ83.keys())
+
     # normalize model names
     if model_names is not None and len(model_names) != len(pred_folders):
         raise ValueError("If model_names is provided, its length must match pred_folders")
@@ -449,12 +488,33 @@ def _run_batch(
                     print(f"[ERROR] Failed on case {case_id}, axis {axis}, model {model_name}: {e}")
 
 
+def run_task570_batch_default() -> None:
+    """One-click batch visualization for Task570_EsoTJ83 using built-in paths and params.
+
+    1) 使用 MODELS_TASK570_EsoTJ83 对 7 个模型分别输出 overlay 图（含 GT）。
+    2) 可在此基础上扩展：对每个 case+axis 生成 1 张大图（7 个模型 + GT）。
+    """
+    cfg = TASK570_DEFAULT_CONFIG
+    _run_batch(
+        data_root=cfg["data_root"],
+        dataset_directory=cfg["dataset_directory"],
+        pred_folders=None,
+        model_names=None,
+        fold=cfg["fold"],
+        output_dir=cfg["output_dir"],
+        alpha=cfg["alpha"],
+        slices=cfg["slices"],
+        save_gt=cfg["save_gt"],
+    )
+
+
 if __name__ == "__main__":
     parser = _build_argparser()
     args = parser.parse_args()
 
+    cmd = getattr(args, "command", None)
     # prioritize subcommands if given
-    if getattr(args, "command", None) == "single":
+    if cmd == "single":
         visualize_case_overlay(
             data_root=args.data_root,
             dataset_directory=args.dataset_directory,
@@ -466,7 +526,7 @@ if __name__ == "__main__":
             axis=args.axis,
             slices=args.slices,
         )
-    elif getattr(args, "command", None) == "batch":
+    elif cmd == "batch":
         _run_batch(
             data_root=args.data_root,
             dataset_directory=args.dataset_directory,
@@ -478,6 +538,8 @@ if __name__ == "__main__":
             slices=args.slices,
             save_gt=getattr(args, "save_gt", False),
         )
+    elif cmd == "task570_default":
+        run_task570_batch_default()
     else:
         # legacy behavior: single-case mode with top-level args
         if not (args.data_root and args.dataset_directory and args.pred_folder and args.case_id and args.output_dir):
