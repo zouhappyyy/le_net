@@ -413,6 +413,23 @@ def _collect_case_ids_from_pred_folder(pred_folder: str) -> List[str]:
     return ids
 
 
+def _collect_case_ids_from_preprocessed(data_root: str) -> List[str]:
+    """Collect available case_ids from nnUNet preprocessed stage0 directory.
+
+    Supports both .npy and .npz files.
+    """
+    if not os.path.isdir(data_root):
+        raise FileNotFoundError(f"Preprocessed data_root not found: {data_root}")
+    ids: List[str] = []
+    for fn in os.listdir(data_root):
+        if fn.endswith(".npy") or fn.endswith(".npz"):
+            case_id = fn.split(".")[0]
+            if case_id not in ids:
+                ids.append(case_id)
+    ids.sort()
+    return ids
+
+
 def _run_batch(
     data_root: str,
     dataset_directory: str,
@@ -438,17 +455,36 @@ def _run_batch(
     if model_names is None:
         model_names = [_infer_model_name_from_pred_folder(p) for p in pred_folders]
 
+    # collect all case_ids that actually have preprocessed data
+    preproc_case_ids = set(_collect_case_ids_from_preprocessed(data_root))
+
     # create subfolder for per-model overlays
     single_dir = os.path.join(output_dir, "single")
     os.makedirs(single_dir, exist_ok=True)
 
     for pred_folder, model_name in zip(pred_folders, model_names):
-        case_ids = _collect_case_ids_from_pred_folder(pred_folder)
-        if not case_ids:
+        pred_case_ids = _collect_case_ids_from_pred_folder(pred_folder)
+        if not pred_case_ids:
             print(f"[WARN] No prediction files found in {pred_folder}, skip")
             continue
 
-        print(f"[INFO] Processing model {model_name} (fold {fold}) with {len(case_ids)} cases from {pred_folder}")
+        # only keep cases that have both preds and preprocessed data
+        case_ids = [cid for cid in pred_case_ids if cid in preproc_case_ids]
+        missing = [cid for cid in pred_case_ids if cid not in preproc_case_ids]
+        if missing:
+            print(
+                f"[WARN] Model {model_name}: {len(missing)} cases have predictions but no preprocessed data, "
+                f"examples: {missing[:5]}"
+            )
+
+        if not case_ids:
+            print(f"[WARN] No overlapping cases between preds and preprocessed for model {model_name}, skip")
+            continue
+
+        print(
+            f"[INFO] Processing model {model_name} (fold {fold}) with {len(case_ids)} cases "
+            f"(out of {len(pred_case_ids)} preds) from {pred_folder}"
+        )
 
         for case_id in case_ids:
             for axis in ("z", "y", "x"):
@@ -507,8 +543,8 @@ def _compose_panels_for_folder(
     for fn in files:
         name, _ = os.path.splitext(fn)
         parts = name.split("-")
-        # expect: fold-case-axis-slice-model-type
-        if len(parts) < 6:
+        # expect: fold-case-slice-model-type
+        if len(parts) < 5:
             continue
         fold_str, case_id, axis, slice_str, model_name, img_type = parts
         try:
