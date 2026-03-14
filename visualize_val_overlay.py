@@ -86,17 +86,24 @@ def _extract_case_data_raw(
 def _load_pred_nifti(pred_path: str) -> np.ndarray:
     """Load prediction nifti and return array in [Z, Y, X] order.
 
-    nnUNet usually stores NIfTI as [X, Y, Z]. We transpose to [Z, Y, X]
-    to match the convention used in `_extract_case_data` for GT.
+    nnUNet usually stores NIfTI as [X, Y, Z] or [X, Y, Z, C]. We always
+    return a 3D label map [Z, Y, X].
     """
     if not os.path.isfile(pred_path):
         raise FileNotFoundError(f"Prediction file not found: {pred_path}")
     img = nib.load(pred_path)
     arr = img.get_fdata()
-    if arr.ndim != 3:
-        raise RuntimeError(f"Expected 3D prediction, got shape {arr.shape} from {pred_path}")
-    # [X, Y, Z] -> [Z, Y, X]
-    arr = np.transpose(arr, (2, 1, 0))
+
+    if arr.ndim == 3:
+        # [X, Y, Z] -> [Z, Y, X]
+        arr = np.transpose(arr, (2, 1, 0))
+    elif arr.ndim == 4:
+        # [X, Y, Z, C] -> argmax over channels -> [X, Y, Z] -> [Z, Y, X]
+        arr = np.argmax(arr, axis=-1)
+        arr = np.transpose(arr, (2, 1, 0))
+    else:
+        raise RuntimeError(f"Expected 3D or 4D prediction, got shape {arr.shape} from {pred_path}")
+
     return arr.astype(np.int16)
 
 
@@ -104,15 +111,28 @@ def _match_shapes(image: np.ndarray, seg: np.ndarray) -> Tuple[np.ndarray, np.nd
     """Center-crop seg to match image spatial size if needed.
 
     image: [C, D, H, W]
-    seg: [D, H, W]
+    seg: [D, H, W] or [C2, D, H, W] (e.g. GT as [1, D, H, W])
     """
     d_i, h_i, w_i = image.shape[1:]
-    d_s, h_s, w_s = seg.shape
-    d = min(d_i, d_s)
-    h = min(h_i, h_s)
-    w = min(w_i, w_s)
-    image_c = image[:, :d, :h, :w]
-    seg_c = seg[:d, :h, :w]
+
+    if seg.ndim == 3:
+        d_s, h_s, w_s = seg.shape
+        d = min(d_i, d_s)
+        h = min(h_i, h_s)
+        w = min(w_i, w_s)
+        image_c = image[:, :d, :h, :w]
+        seg_c = seg[:d, :h, :w]
+    elif seg.ndim == 4:
+        # seg: [C2, D, H, W]
+        _, d_s, h_s, w_s = seg.shape
+        d = min(d_i, d_s)
+        h = min(h_i, h_s)
+        w = min(w_i, w_s)
+        image_c = image[:, :d, :h, :w]
+        seg_c = seg[:, :d, :h, :w]
+    else:
+        raise RuntimeError(f"Unexpected seg ndim={seg.ndim} in _match_shapes")
+
     return image_c, seg_c
 
 
