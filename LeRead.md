@@ -1,5 +1,5 @@
 # 1) 预处理（生成 nnUNet 的预处理数据）
-mednextv1_plan_and_preprocess -t 505 -pl3d ExperimentPlanner3D_v21_customTargetSpacing_1x1x1 -pl2d ExperimentPlanner2D_v21_customTargetSpacing_1x1x1
+mednextv1_plan_and_preprocess -t 570 -pl3d ExperimentPlanner3D_v21_customTargetSpacing_1x1x1 -pl2d ExperimentPlanner2D_v21_customTargetSpacing_1x1x1
 mednextv1_plan_and_preprocess -t 601 -pl3d ExperimentPlanner3D_v21_customTargetSpacing_1x1x1 -pl2d ExperimentPlanner2D_v21_customTargetSpacing_1x1x1
 
 # 2) 训练单个 fold（Small 模型，kernel=3，fold 0）
@@ -155,7 +155,7 @@ nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt 530 1 -p nnUNetPlansv2.1_t
 
 
 
-python convert_npz_to_npy.py \
+python testnpy.py \
   --input_dir "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task570_EsoTJ83/nnUNetData_plans_v2.1_trgSp_1x1x1_stage0" \
   --output_dir "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task570_EsoTJ83/nnUNetData_plans_v2.1_trgSp_1x1x1_stage0"
    

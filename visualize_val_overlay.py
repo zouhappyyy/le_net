@@ -24,7 +24,8 @@ MODELS_TASK570_EsoTJ83 = {
     "RWKV_fd_loss": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_predictions/Task570_EsoTJ83/Double_CCA_UPSam_fd_loss_RWKV/preds",
     "UNet3D": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_predictions/Task570_EsoTJ83/UNet3DTrainer/preds",
 }
-
+# /home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task570_EsoTJ83/nnUNetData_plans_v2.1_trgSp_1x1x1_stage0
+#
 # 默认的 Task570 可视化配置（使用 nnUNet 预处理后的 .npy 数据）
 TASK570_DEFAULT_CONFIG = {
     # 请根据实际生成的 plans 名称调整下行路径中的 plans 标识

@@ -6,7 +6,7 @@ import numpy as np
 def convert_npz_dir_to_npy(
     input_dir: str,
     output_dir: str,
-    key: str | None = None,
+    key: str,
     overwrite: bool = False,
 ) -> None:
     """
