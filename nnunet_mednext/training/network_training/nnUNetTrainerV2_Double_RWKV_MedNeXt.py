@@ -33,11 +33,14 @@ class nnUNetTrainerV2_Double_RWKV_MedNeXt(nnUNetTrainerV2_Optim_and_LR):
 
     def __init__(self, *args, **kwargs):
         # Checkpoint may already contain fp16 in its saved init args/kwargs. To avoid
-        # "got multiple values for argument 'fp16'" while still forcing fp32, we
-        # remove any fp16 kwarg and pass fp16=False explicitly to the parent.
+        # "got multiple values for argument 'fp16'" and to mirror your fp32-only
+        # behavior from nnUNetTrainerV2_Double_CCA_UPSam_fd_RWKV_MedNeXt, we remove
+        # any fp16 kwarg and let the parent handle precision; you should pass
+        # --disable_mixed_precision at inference to enforce fp32.
         if "fp16" in kwargs:
             kwargs.pop("fp16")
-        super().__init__(*args, fp16=False, **kwargs)
+        super().__init__(*args, **kwargs)
+
         # unify max epochs as in your other custom trainers
         self.max_epochs = 300
         if hasattr(self, "max_num_epochs"):
