@@ -1,10 +1,12 @@
 import os
 import argparse
 from typing import List, Optional, Tuple, Dict
+from collections import defaultdict
 
 import numpy as np
 import nibabel as nib
 import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
 
 from nnunet_mednext.utilities.overlay_plots import generate_overlay
 from visualize_fd_edge_and_ds import _extract_case_data
@@ -27,7 +29,7 @@ TASK570_DEFAULT_CONFIG = {
     "data_root": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task570_EsoTJ_30pct/nnUNetData_plans_v2.1_trgSp_1x1x1_stage0",
     "dataset_directory": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task570_EsoTJ_30pct",
     "fold": 1,
-    "output_dir": "./val_vis_all_task570",
+    "output_dir": "./Task570_val_vis_all",
     "alpha": 0.6,
     "slices": None,  # None: 每个方向取中间层；也可以改成 [80, 100, ...]
     "save_gt": True,
@@ -257,7 +259,8 @@ def _build_argparser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Visualize overlay of validation predictions and original images (single case or batch over models)",
     )
-    subparsers = parser.add_subparsers(dest="command", required=False)
+    # Make subcommands mandatory so we don't have ambiguous legacy mode when a subcommand is passed
+    subparsers = parser.add_subparsers(dest="command")
 
     # single-case mode (backwards compatible)
     p_single = subparsers.add_parser("single", help="Visualize one case")
@@ -348,49 +351,12 @@ def _build_argparser() -> argparse.ArgumentParser:
     p_batch.add_argument("--save_gt", action="store_true", help="Also export GT overlays for each slice")
 
     # task570 default mode: use built-in config and model list
-    p_t570 = subparsers.add_parser(
+    subparsers.add_parser(
         "task570_default",
         help="Use built-in Task570_EsoTJ83 config and model list to batch visualize all cases",
     )
-    # 不需要额外参数，全部从 TASK570_DEFAULT_CONFIG / MODELS_TASK570_EsoTJ83 读取
 
-    # default: preserve old behavior if no subcommand is specified
-    parser.add_argument("--data_root", type=str, help="[legacy] Folder with preprocessed stage0 .npy volumes")
-    parser.add_argument(
-        "--dataset_directory",
-        type=str,
-        help="[legacy] nnUNet dataset directory (contains gt_segmentations)",
-    )
-    parser.add_argument(
-        "--pred_folder",
-        type=str,
-        help="[legacy] Folder with prediction NIfTI files (e.g. validation_raw_postprocessed)",
-    )
-    parser.add_argument("--case_id", type=str, help="[legacy] Case id to visualize (e.g. ESO_TJ_60011222468)")
-    parser.add_argument("--output_dir", type=str, help="[legacy] Where to save output PNGs")
-    parser.add_argument("--alpha", type=float, default=0.6, help="[legacy] Overlay intensity (alpha) for segmentation")
-    parser.add_argument(
-        "--mode",
-        type=str,
-        choices=["slice", "mip"],
-        default="slice",
-        help="[legacy] Visualization mode: slice or mip",
-    )
-    parser.add_argument(
-        "--axis",
-        type=str,
-        choices=["z", "y", "x"],
-        default="z",
-        help="[legacy] Slice axis for slice mode",
-    )
-    parser.add_argument(
-        "--slices",
-        type=int,
-        nargs="*",
-        default=None,
-        help="[legacy] Slice indices to visualize (if empty, use middle slice)",
-    )
-
+    # Remove legacy top-level arguments to avoid conflicts
     return parser
 
 
@@ -427,7 +393,7 @@ def _collect_case_ids_from_pred_folder(pred_folder: str) -> List[str]:
 def _run_batch(
     data_root: str,
     dataset_directory: str,
-    pred_folders: List[str] | None,
+    pred_folders: List[str],
     model_names: Optional[List[str]],
     fold: int,
     output_dir: str,
@@ -449,7 +415,9 @@ def _run_batch(
     if model_names is None:
         model_names = [_infer_model_name_from_pred_folder(p) for p in pred_folders]
 
-    os.makedirs(output_dir, exist_ok=True)
+    # create subfolder for per-model overlays
+    single_dir = os.path.join(output_dir, "single")
+    os.makedirs(single_dir, exist_ok=True)
 
     for pred_folder, model_name in zip(pred_folders, model_names):
         case_ids = _collect_case_ids_from_pred_folder(pred_folder)
@@ -467,7 +435,7 @@ def _run_batch(
                         dataset_directory=dataset_directory,
                         pred_folder=pred_folder,
                         case_id=case_id,
-                        output_dir=output_dir,
+                        output_dir=single_dir,
                         alpha=alpha,
                         mode="slice",
                         axis=axis,
@@ -475,36 +443,127 @@ def _run_batch(
                         name_prefix=None,
                         save_gt=save_gt,
                     )
-                    # rename files to pattern: fold-id-axis-sliceindex-modelname[-type]
+                    # rename files to pattern in the single/ subfolder: fold-id-axis-sliceindex-modelname[-type]
                     for item in results:
                         slice_idx = item["slice"]
                         img_type = item.get("type", "pred")
                         old_path = item["path"]
                         ext = os.path.splitext(old_path)[1]
                         new_name = f"{fold}-{case_id}-{axis}-{slice_idx}-{model_name}-{img_type}{ext}"
-                        new_path = os.path.join(output_dir, new_name)
+                        new_path = os.path.join(single_dir, new_name)
                         os.replace(old_path, new_path)
                 except Exception as e:
                     print(f"[ERROR] Failed on case {case_id}, axis {axis}, model {model_name}: {e}")
 
 
+def _compose_panels_for_folder(
+    output_dir: str,
+    model_names: List[str],
+    fold: int,
+) -> None:
+    """Compose panel images (7 models + GT) from per-model overlays.
+
+    Reads from `<output_dir>/single` and writes panels into `<output_dir>/panels`.
+    Each panel is named: fold-case-axis-slice-panel.png
+    """
+    single_dir = os.path.join(output_dir, "single")
+    panels_dir = os.path.join(output_dir, "panels")
+    os.makedirs(panels_dir, exist_ok=True)
+
+    if not os.path.isdir(single_dir):
+        print(f"[PANEL] single dir does not exist, skip panels: {single_dir}")
+        return
+
+    files = [f for f in os.listdir(single_dir) if f.endswith(".png")]
+    if not files:
+        print(f"[PANEL] no PNG files found in {single_dir}, nothing to do")
+        return
+
+    panel_map = defaultdict(lambda: {"preds": {}, "gt": None})
+
+    for fn in files:
+        name, _ = os.path.splitext(fn)
+        parts = name.split("-")
+        # expect: fold-case-axis-slice-model-type
+        if len(parts) < 6:
+            continue
+        fold_str, case_id, axis, slice_str, model_name, img_type = parts
+        try:
+            if int(fold_str) != fold:
+                continue
+            slice_idx = int(slice_str)
+        except ValueError:
+            continue
+
+        key = (case_id, axis, slice_idx)
+        full_path = os.path.join(single_dir, fn)
+        if img_type == "pred":
+            panel_map[key]["preds"][model_name] = full_path
+        elif img_type == "gt":
+            # any GT for this key is fine
+            panel_map[key]["gt"] = full_path
+
+    order = list(model_names)
+
+    for (case_id, axis, slice_idx), item in panel_map.items():
+        preds = item["preds"]
+        gt_path = item["gt"]
+        # require all models and a GT to be present
+        if gt_path is None or any(m not in preds for m in order):
+            continue
+
+        imgs = []
+        titles = []
+        for m in order:
+            img = mpimg.imread(preds[m])
+            imgs.append(img)
+            titles.append(m)
+        # last column is GT
+        imgs.append(mpimg.imread(gt_path))
+        titles.append("GT")
+
+        cols = len(imgs)
+        fig, axes = plt.subplots(1, cols, figsize=(3 * cols, 3))
+        if cols == 1:
+            axes = [axes]
+        for ax, img, title in zip(axes, imgs, titles):
+            ax.imshow(img)
+            ax.set_title(title)
+            ax.axis("off")
+
+        plt.tight_layout()
+        panel_name = f"{fold}-{case_id}-{axis}-{slice_idx}-panel.png"
+        panel_path = os.path.join(panels_dir, panel_name)
+        fig.savefig(panel_path, dpi=150)
+        plt.close(fig)
+        print(f"[PANEL] Saved panel to: {panel_path}")
+
+
 def run_task570_batch_default() -> None:
     """One-click batch visualization for Task570_EsoTJ83 using built-in paths and params.
 
-    1) 使用 MODELS_TASK570_EsoTJ83 对 7 个模型分别输出 overlay 图（含 GT）。
-    2) 可在此基础上扩展：对每个 case+axis 生成 1 张大图（7 个模型 + GT）。
+    1) 使用 MODELS_TASK570_EsoTJ83 对 7 个模型分别输出 overlay 图（含 GT），存放在 output_dir/single。
+    2) 对每个 case+axis+slice 生成 1 张大图（7 个模型 + GT），存放在 output_dir/panels。
     """
     cfg = TASK570_DEFAULT_CONFIG
+    out_dir = cfg["output_dir"]
     _run_batch(
         data_root=cfg["data_root"],
         dataset_directory=cfg["dataset_directory"],
         pred_folders=None,
         model_names=None,
         fold=cfg["fold"],
-        output_dir=cfg["output_dir"],
+        output_dir=out_dir,
         alpha=cfg["alpha"],
         slices=cfg["slices"],
         save_gt=cfg["save_gt"],
+    )
+
+    model_names = list(MODELS_TASK570_EsoTJ83.keys())
+    _compose_panels_for_folder(
+        output_dir=out_dir,
+        model_names=model_names,
+        fold=cfg["fold"],
     )
 
 
@@ -513,7 +572,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     cmd = getattr(args, "command", None)
-    # prioritize subcommands if given
     if cmd == "single":
         visualize_case_overlay(
             data_root=args.data_root,
@@ -541,21 +599,4 @@ if __name__ == "__main__":
     elif cmd == "task570_default":
         run_task570_batch_default()
     else:
-        # legacy behavior: single-case mode with top-level args
-        if not (args.data_root and args.dataset_directory and args.pred_folder and args.case_id and args.output_dir):
-            parser.error(
-                "For legacy single-case mode, --data_root, --dataset_directory, "
-                "--pred_folder, --case_id and --output_dir must be provided.",
-            )
-        visualize_case_overlay(
-            data_root=args.data_root,
-            dataset_directory=args.dataset_directory,
-            pred_folder=args.pred_folder,
-            case_id=args.case_id,
-            output_dir=args.output_dir,
-            alpha=args.alpha,
-            mode=args.mode,
-            axis=args.axis,
-            slices=args.slices,
-        )
-
+        parser.print_help()
