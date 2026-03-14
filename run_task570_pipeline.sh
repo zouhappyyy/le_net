@@ -7,19 +7,30 @@ PRED_ROOT="/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_predictions/Task570_E
 
 cd "$ROOT_DIR" || exit 1
 
-# 1) 使用三个模型对 Task570 做推理
-#   直接调用 predict_simple 三次，分别对应三个 trainer + plans
-#
 # 模型 1: nnUNetTrainerV2_Double_CCA_UPSam_fd_RWKV_MedNeXt, plans rwkv
 python -m nnunet_mednext.inference.predict_simple \
   -i "$IMAGES_DIR" \
-  -o "$PRED_ROOT/Double_CCA_UPSam_fd_RWKV/preds" \
+  -o "$PRED_ROOT/Double_RWKV/preds" \
   -t "Task530_EsoTJ_30pct" \
   -m "3d_fullres" \
-  -tr "nnUNetTrainerV2_Double_CCA_UPSam_fd_RWKV_MedNeXt" \
+  -tr "nnUNetTrainerV2_Double_RWKV_MedNeXt" \
   -p "nnUNetPlansv2.1_trgSp_1x1x1_rwkv" \
   -f 1 \
   --disable_tta
+
+## 1) 使用三个模型对 Task570 做推理
+##   直接调用 predict_simple 三次，分别对应三个 trainer + plans
+##
+## 模型 1: nnUNetTrainerV2_Double_CCA_UPSam_fd_RWKV_MedNeXt, plans rwkv
+#python -m nnunet_mednext.inference.predict_simple \
+#  -i "$IMAGES_DIR" \
+#  -o "$PRED_ROOT/Double_CCA_UPSam_fd_RWKV/preds" \
+#  -t "Task530_EsoTJ_30pct" \
+#  -m "3d_fullres" \
+#  -tr "nnUNetTrainerV2_Double_CCA_UPSam_fd_RWKV_MedNeXt" \
+#  -p "nnUNetPlansv2.1_trgSp_1x1x1_rwkv" \
+#  -f 1 \
+#  --disable_tta
 
 ## 模型 2: nnUNetTrainerV2_MedNeXt_S_kernel3, plans rwkv
 #python -m nnunet_mednext.inference.predict_simple \
