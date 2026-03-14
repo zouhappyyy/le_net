@@ -28,18 +28,41 @@ class nnUNetTrainerV2_Double_RWKV_MedNeXt(nnUNetTrainerV2_Optim_and_LR):
     """nnUNet Trainer using Double_RWKV_MedNeXt as the backbone.
 
     Training loop and loss definition are inherited from nnUNetTrainerV2_Optim_and_LR.
-    Here we only override network construction.
+    Here we only override network construction and enforce fp32 (no fp16).
     """
 
-    def __init__(self, *args, **kwargs):
-        # Checkpoint may already contain fp16 in its saved init args/kwargs. To avoid
-        # "got multiple values for argument 'fp16'" and to mirror your fp32-only
-        # behavior from nnUNetTrainerV2_Double_CCA_UPSam_fd_RWKV_MedNeXt, we remove
-        # any fp16 kwarg and let the parent handle precision; you should pass
-        # --disable_mixed_precision at inference to enforce fp32.
-        if "fp16" in kwargs:
-            kwargs.pop("fp16")
-        super().__init__(*args, **kwargs)
+    def __init__(
+        self,
+        plans_file,
+        fold,
+        output_folder=None,
+        dataset_directory=None,
+        batch_dice=True,
+        stage=None,
+        unpack_data=True,
+        deterministic=True,
+        fp16: bool = False,
+        sample_by_frequency: bool = False,
+    ):
+        """Explicit signature so fp16 is only passed once and defaults to False.
+
+        This mirrors the pattern used in nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt:
+        we keep fp16 in the signature (for checkpoint compatibility) but default it to
+        False so this trainer runs in fp32. We do not inject fp16 via **kwargs, which
+        avoids '__init__() got multiple values for argument fp16'.
+        """
+        super().__init__(
+            plans_file,
+            fold,
+            output_folder=output_folder,
+            dataset_directory=dataset_directory,
+            batch_dice=batch_dice,
+            stage=stage,
+            unpack_data=unpack_data,
+            deterministic=deterministic,
+            fp16=fp16,
+            sample_by_frequency=sample_by_frequency,
+        )
 
         # unify max epochs as in your other custom trainers
         self.max_epochs = 300
