@@ -104,6 +104,10 @@ def visualize_case_overlay(
     slices: Optional[List[int]] = None,
     name_prefix: str = "",
     save_gt: bool = False,
+    # new: per-axis slice lists for GT-only multi-axis mode
+    slices_z: Optional[List[int]] = None,
+    slices_y: Optional[List[int]] = None,
+    slices_x: Optional[List[int]] = None,
 ) -> List[Dict[str, object]]:
     """Visualize overlay of original image, prediction, and optional GT for a single case.
 
@@ -112,11 +116,16 @@ def visualize_case_overlay(
     pred_folder: folder containing prediction nifti files (validation_raw or validation_raw_postprocessed)
     case_id: case identifier (e.g. ESO_TJ_60011222468)
     output_dir: where to save pngs
-    mode: "slice" (single or multiple 2D slices) or "mip" (3D MIP views)
+    mode: "slice" (single or multiple 2D slices), "mip" (3D MIP views) or
+          "gt_multi_axis" (GT-only overlays for all three axes with
+          separately specified slice indices).
     axis: for slice mode, one of {"z", "y", "x"}
     slices: optional list of slice indices; if None, use middle slice
     name_prefix: optional string prefix to prepend in filename (e.g. fold-modelname)
     save_gt: if True, also export GT overlay images alongside predictions.
+    slices_z/slices_y/slices_x: optional per-axis slice lists used only when
+        mode == "gt_multi_axis". If an axis list is None or empty, the
+        middle slice of that axis is used.
 
     Returns a list of dicts with information about generated images.
     """
@@ -273,8 +282,65 @@ def visualize_case_overlay(
             }
         )
 
+    elif mode == "gt_multi_axis":
+        # GT-only overlays in three directions with per-axis slice lists
+        def _prepare_slices(n: int, sl: Optional[List[int]]) -> List[int]:
+            if sl is None or len(sl) == 0:
+                return [n // 2]
+            # keep only valid indices and sort unique
+            return sorted({i for i in sl if 0 <= i < n})
+
+        slices_z_eff = _prepare_slices(D, slices_z)
+        slices_y_eff = _prepare_slices(H, slices_y)
+        slices_x_eff = _prepare_slices(W, slices_x)
+
+        # helper to save one overlay
+        def _save_gt_slice(img_slice_2d: np.ndarray, gt_slice_2d: np.ndarray, axis_name: str, s_idx: int) -> None:
+            # use mapping so that all foreground labels share the same "red" color
+            uniques = np.unique(gt_slice_2d)
+            # ensure background 0 is present as first entry
+            uniques = uniques.tolist()
+            if 0 not in uniques:
+                uniques = [0] + uniques
+            mapping = {l: (0 if l == 0 else 4) for l in uniques}  # 4 -> "e6194B" red in color_cycle
+            overlay_gt = generate_overlay(img_slice_2d, gt_slice_2d, mapping=mapping, overlay_intensity=alpha)
+
+            base_name_gt = f"{case_id}_axis-{axis_name}_slice-{s_idx}_gt_red.png"
+            out_name_gt = f"{name_prefix}_{base_name_gt}" if name_prefix else base_name_gt
+            out_path_gt = os.path.join(output_dir, out_name_gt)
+            plt.imsave(out_path_gt, overlay_gt)
+            print(f"Saved GT(red) overlay to: {out_path_gt}")
+            results.append(
+                {
+                    "case_id": case_id,
+                    "axis": axis_name,
+                    "slice": s_idx,
+                    "path": out_path_gt,
+                    "pred_folder": pred_folder,
+                    "type": "gt",
+                }
+            )
+
+        # Z axis
+        for s in slices_z_eff:
+            img_slice = image[0, s]
+            gt_slice = gt[s]
+            _save_gt_slice(img_slice, gt_slice, "z", s)
+
+        # Y axis
+        for s in slices_y_eff:
+            img_slice = image[0, :, s, :]
+            gt_slice = gt[:, s, :]
+            _save_gt_slice(img_slice, gt_slice, "y", s)
+
+        # X axis
+        for s in slices_x_eff:
+            img_slice = image[0, :, :, s]
+            gt_slice = gt[:, :, s]
+            _save_gt_slice(img_slice, gt_slice, "x", s)
+
     else:
-        raise ValueError("mode must be 'slice' or 'mip'")
+        raise ValueError("mode must be 'slice', 'mip' or 'gt_multi_axis'")
 
     return results
 
@@ -307,23 +373,49 @@ def _build_argparser() -> argparse.ArgumentParser:
     p_single.add_argument(
         "--mode",
         type=str,
-        choices=["slice", "mip"],
+        choices=["slice", "mip", "gt_multi_axis"],
         default="slice",
-        help="Visualization mode: slice or mip",
+        help=(
+            "Visualization mode: "
+            "'slice' (img+pred[+gt] for one axis), "
+            "'mip' (3D MIP views), or "
+            "'gt_multi_axis' (GT-only overlays in three axes with per-axis slice lists)."
+        ),
     )
     p_single.add_argument(
         "--axis",
         type=str,
         choices=["z", "y", "x"],
         default="z",
-        help="Slice axis for slice mode",
+        help="Slice axis for slice mode (ignored in gt_multi_axis mode)",
     )
     p_single.add_argument(
         "--slices",
         type=int,
         nargs="*",
         default=None,
-        help="Slice indices to visualize (if empty, use middle slice)",
+        help="Slice indices to visualize in slice mode (if empty, use middle slice)",
+    )
+    p_single.add_argument(
+        "--slices_z",
+        type=int,
+        nargs="*",
+        default=None,
+        help="Z-axis slice indices for gt_multi_axis mode (if empty, use middle slice)",
+    )
+    p_single.add_argument(
+        "--slices_y",
+        type=int,
+        nargs="*",
+        default=None,
+        help="Y-axis slice indices for gt_multi_axis mode (if empty, use middle slice)",
+    )
+    p_single.add_argument(
+        "--slices_x",
+        type=int,
+        nargs="*",
+        default=None,
+        help="X-axis slice indices for gt_multi_axis mode (if empty, use middle slice)",
     )
 
     # batch mode: multiple models, all cases, all three axes
@@ -643,6 +735,9 @@ if __name__ == "__main__":
             mode=args.mode,
             axis=args.axis,
             slices=args.slices,
+            slices_z=getattr(args, "slices_z", None),
+            slices_y=getattr(args, "slices_y", None),
+            slices_x=getattr(args, "slices_x", None),
         )
     elif cmd == "batch":
         _run_batch(
