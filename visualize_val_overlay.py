@@ -33,7 +33,7 @@ TASK570_DEFAULT_CONFIG = {
     "dataset_directory": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task570_EsoTJ83",
     "fold": 1,
     "output_dir": "./Task570_val_vis_all",
-    "alpha": 0.9,
+    "alpha": 0.99,
     "slices": None,  # None: 每个方向取中间层；也可以改成 [80, 100, ...]
     "save_gt": True,
 }
