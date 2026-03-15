@@ -158,4 +158,13 @@ nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt 530 1 -p nnUNetPlansv2.1_t
 python testnpy.py \
   --input_dir "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task570_EsoTJ83/nnUNetData_plans_v2.1_trgSp_1x1x1_stage0" \
   --output_dir "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task570_EsoTJ83/nnUNetData_plans_v2.1_trgSp_1x1x1_stage0"
-   
+
+
+
+cd E:\le_mednext
+
+python export_task570_middle_slices.py \
+  --data_root "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task570_EsoTJ83/nnUNetData_plans_v2.1_trgSp_1x1x1_stage0" \
+  --dataset_directory "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task570_EsoTJ83" \
+  --output_dir "Task570_middle_slices" \
+  --alpha 0.99
