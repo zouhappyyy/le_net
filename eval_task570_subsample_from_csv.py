@@ -9,9 +9,9 @@ import numpy as np
 INPUT_CSV = "./Task570_metrics_all_models/metrics_task570_all_models_cases.csv"
 OUTPUT_DIR = "./Task570_metrics_all_models"
 
-SAMPLE_SIZE = 35
+SAMPLE_SIZE = 40
 RANDOM_SEED = 88  # 基础随机种子
-NUM_SUBSETS = 25    # 需要生成多少个随机子集
+NUM_SUBSETS = 100    # 需要生成多少个随机子集
 
 # 对外想保留的 7 个指标列名（输出 CSV 使用这些名字）
 METRICS_TO_KEEP = [

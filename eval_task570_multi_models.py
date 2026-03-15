@@ -58,13 +58,52 @@ def compute_case_metrics(pred, gt):
     return out
 
 
+def compute_tp_fp_fn_per_case(pred: np.ndarray, gt: np.ndarray, label_ids=None):
+    """Compute voxel-level TP/FN/FP per label for a single case.
+
+    pred, gt: numpy arrays of identical shape.
+    label_ids: optional iterable of labels to evaluate. If None, infer from gt.
+
+    Returns a dict mapping label(int) -> {"TP", "FP", "FN", "n_pred", "n_gt"}.
+    """
+    if pred.shape != gt.shape:
+        raise ValueError(f"Shape mismatch in TP/FP/FN: pred {pred.shape}, gt {gt.shape}")
+
+    pred = pred.astype(np.int32, copy=False)
+    gt = gt.astype(np.int32, copy=False)
+
+    if label_ids is None:
+        # For Task570 we only care about foreground label 1; ignore background 0
+        unique_labels = sorted(set(np.unique(gt)).union(set(np.unique(pred))))
+        label_ids = [l for l in unique_labels if l != 0]
+
+    out = {}
+    for lab in label_ids:
+        pred_l = pred == lab
+        gt_l = gt == lab
+        tp = int(np.logical_and(pred_l, gt_l).sum())
+        fn = int(np.logical_and(~pred_l, gt_l).sum())
+        fp = int(np.logical_and(pred_l, ~gt_l).sum())
+        n_pred = int(pred_l.sum())
+        n_gt = int(gt_l.sum())
+        out[int(lab)] = {
+            "TP": tp,
+            "FP": fp,
+            "FN": fn,
+            "n_pred": n_pred,
+            "n_gt": n_gt,
+        }
+    return out
+
+
 def evaluate_one_model(model_name: str, pred_dir: str):
     case_ids = list_case_ids(GT_DIR)
     print(f"\n[MODEL] {model_name}: found {len(case_ids)} GT cases")
 
     per_case_results = []
     per_label_accumulator = {}
-    rows_cases = []  # for CSV
+    rows_cases = []  # for CSV (Evaluator metrics)
+    rows_cases_tp_fp_fn = []  # for CSV (TP/FN/FP counts)
 
     for cid in case_ids:
         gt_path = os.path.join(GT_DIR, f"{cid}.nii.gz")
@@ -87,6 +126,7 @@ def evaluate_one_model(model_name: str, pred_dir: str):
         if pred.shape != gt.shape:
             print(f"  [WARN] shape mismatch for {cid}: pred {pred.shape}, gt {gt.shape} (no auto-fix)")
 
+        # ---------- Evaluator metrics ----------
         case_metrics = compute_case_metrics(pred, gt)  # {label: {metric: value}}
 
         # assemble case entry similar to nnUNet summary.json
@@ -106,9 +146,24 @@ def evaluate_one_model(model_name: str, pred_dir: str):
                 row[m_name] = float(m_val)
             rows_cases.append(row)
 
+        # ---------- TP/FP/FN metrics (per-case, per-label) ----------
+        tp_fp_fn = compute_tp_fp_fn_per_case(pred, gt, label_ids=[1])  # Task570 foreground label=1
+        for lab, stats in tp_fp_fn.items():
+            row_tp = {
+                "model": model_name,
+                "case_id": cid,
+                "label": int(lab),
+                "TP": stats["TP"],
+                "FP": stats["FP"],
+                "FN": stats["FN"],
+                "n_pred": stats["n_pred"],
+                "n_gt": stats["n_gt"],
+            }
+            rows_cases_tp_fp_fn.append(row_tp)
+
     if not per_case_results:
         print(f"[MODEL] {model_name}: no valid cases, skip summary/CSV")
-        return
+        return None, None, None, None
 
     # compute mean over cases per label
     mean_results = {}
@@ -169,7 +224,17 @@ def evaluate_one_model(model_name: str, pred_dir: str):
             writer.writerow(r)
     print(f"[MODEL] {model_name}: saved mean metrics CSV to {mean_csv}")
 
-    return rows_cases, rows_mean, metric_names
+    # CSV: per-case TP/FP/FN counts for this model
+    tp_fp_fn_csv = os.path.join(pred_dir, f"metrics_task570_{model_name}_cases_tp_fp_fn.csv")
+    tp_fieldnames = ["model", "case_id", "label", "TP", "FP", "FN", "n_pred", "n_gt"]
+    with open(tp_fp_fn_csv, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=tp_fieldnames)
+        writer.writeheader()
+        for r in rows_cases_tp_fp_fn:
+            writer.writerow(r)
+    print(f"[MODEL] {model_name}: saved per-case TP/FP/FN CSV to {tp_fp_fn_csv}")
+
+    return rows_cases, rows_mean, rows_cases_tp_fp_fn, metric_names
 
 
 def main():
@@ -178,10 +243,14 @@ def main():
     # 全模型汇总：per-case 和 mean
     all_rows_cases = []
     all_rows_mean = []
+    all_rows_cases_tp_fp_fn = []
     global_metric_names = None
 
     for model_name, pred_dir in MODELS.items():
-        rows_cases, rows_mean, metric_names = evaluate_one_model(model_name, pred_dir)
+        result = evaluate_one_model(model_name, pred_dir)
+        if not result:
+            continue
+        rows_cases, rows_mean, rows_cases_tp_fp_fn, metric_names = result
         if not rows_cases:
             continue
         # 记录本模型名
@@ -193,6 +262,8 @@ def main():
             r_with_model = {"model": model_name}
             r_with_model.update(r)
             all_rows_mean.append(r_with_model)
+        for r in rows_cases_tp_fp_fn:
+            all_rows_cases_tp_fp_fn.append(r)
         # 统一 metric_names（假设各模型一致）
         if global_metric_names is None:
             global_metric_names = metric_names
@@ -218,6 +289,17 @@ def main():
             for r in all_rows_mean:
                 writer.writerow(r)
         print(f"[AGG] Saved aggregated mean metrics to {agg_mean_csv}")
+
+    if all_rows_cases_tp_fp_fn:
+        # 汇总 TP/FP/FN per-case CSV：model, case_id, label, TP, FP, FN, n_pred, n_gt
+        agg_tp_csv = os.path.join(AGGREGATE_OUT_DIR, "metrics_task570_all_models_cases_tp_fp_fn.csv")
+        tp_fieldnames = ["model", "case_id", "label", "TP", "FP", "FN", "n_pred", "n_gt"]
+        with open(agg_tp_csv, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=tp_fieldnames)
+            writer.writeheader()
+            for r in all_rows_cases_tp_fp_fn:
+                writer.writerow(r)
+        print(f"[AGG] Saved aggregated per-case TP/FP/FN metrics to {agg_tp_csv}")
 
 
 if __name__ == "__main__":
