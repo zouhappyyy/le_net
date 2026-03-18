@@ -25,7 +25,7 @@ DEFAULT_PARAMS = {
         "VoComni": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_predictions/Task602_ls/VoComni_nnunet",
     },
     "output_dir": "./Task602_ls_vis",
-    "slices": [60, 80, 100],
+    "axes": ["z", "y", "x"],
     "alpha": 0.6,
     "image_suffix": "_0000.nii.gz",
     "pred_suffix": ".nii.gz",
@@ -117,6 +117,91 @@ def _determine_slices(length: int, requested: Optional[List[int]]) -> List[int]:
     if not valid:
         raise ValueError(f"Requested slices {requested} are outside volume length {length}")
     return valid
+
+
+def _center_slices_for_axis(
+    gt_vol: np.ndarray,
+    axis: str,
+    fractions: Optional[List[float]] = None,
+) -> List[int]:
+    """Compute representative slice indices along a given axis based on GT foreground.
+
+    If fractions is None, a single middle slice of the foreground range is returned.
+    """
+    if gt_vol is None:
+        return []
+
+    if fractions is None or len(fractions) == 0:
+        fractions = [0.5]
+
+    # Boolean mask: for each slice index along `axis`, whether there is any foreground.
+    if axis == "z":
+        mask_1d = (gt_vol != 0).any(axis=(1, 2))
+    elif axis == "y":
+        mask_1d = (gt_vol != 0).any(axis=(0, 2))
+    elif axis == "x":
+        mask_1d = (gt_vol != 0).any(axis=(0, 1))
+    else:
+        raise ValueError("axis must be one of 'z', 'y', 'x'")
+
+    if not mask_1d.any():
+        return []
+
+    fg_indices = np.flatnonzero(mask_1d)
+    start = int(fg_indices[0])
+    end = int(fg_indices[-1])
+    length = end - start + 1
+
+    if length <= 1:
+        return [start]
+
+    indices: List[int] = []
+    for f in fractions:
+        # Clamp fraction to [0, 1]
+        if f < 0.0:
+            f = 0.0
+        elif f > 1.0:
+            f = 1.0
+        pos = start + int(round((length - 1) * f))
+        indices.append(pos)
+
+    # Deduplicate and sort
+    return sorted(set(indices))
+
+
+def _auto_slices_from_gt(
+    gt_vol: Optional[np.ndarray],
+    axis: str,
+    fallback_length: int,
+    fractions: Optional[List[float]] = None,
+) -> List[int]:
+    """Determine default slices for an axis using GT when available.
+
+    If GT is missing or empty along this axis, fall back to the geometric middle slice.
+    """
+    if gt_vol is None:
+        return _determine_slices(fallback_length, None)
+
+    indices = _center_slices_for_axis(gt_vol, axis, fractions)
+    if not indices:
+        return _determine_slices(fallback_length, None)
+
+    valid = sorted({idx for idx in indices if 0 <= idx < fallback_length})
+    if not valid:
+        return _determine_slices(fallback_length, None)
+    return valid
+
+
+def _get_axis_slices_for_case(
+    length: int,
+    axis: str,
+    slices: Optional[List[int]],
+    gt_vol: Optional[np.ndarray],
+) -> List[int]:
+    """Resolve slice indices for a given axis, optionally using GT when slices are not provided."""
+    if slices is not None:
+        return _determine_slices(length, slices)
+    return _auto_slices_from_gt(gt_vol, axis, length)
 
 
 def _extract_slice(image: np.ndarray, volume: np.ndarray, axis: str, index: int) -> Tuple[np.ndarray, np.ndarray]:
@@ -295,11 +380,11 @@ def process_case(
     axis_to_slices: Dict[str, List[int]] = {}
     for axis in axes:
         if axis == "z":
-            axis_to_slices[axis] = _determine_slices(depth, slices)
+            axis_to_slices[axis] = _get_axis_slices_for_case(depth, axis, slices, gt)
         elif axis == "y":
-            axis_to_slices[axis] = _determine_slices(height, slices)
+            axis_to_slices[axis] = _get_axis_slices_for_case(height, axis, slices, gt)
         elif axis == "x":
-            axis_to_slices[axis] = _determine_slices(width, slices)
+            axis_to_slices[axis] = _get_axis_slices_for_case(width, axis, slices, gt)
         else:
             raise ValueError("Axes must be any of ['z','y','x']")
 
