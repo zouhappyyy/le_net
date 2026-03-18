@@ -11,28 +11,28 @@ import matplotlib.image as mpimg
 from nnunet_mednext.utilities.overlay_plots import generate_overlay
 from visualize_fd_edge_and_ds import _extract_case_data
 
-# python visualize_val_overlay.py task570_default
+# python visualize_val_overlay.py task602_default
 
-# Explicit mapping for Task570_EsoTJ83 models and their prediction folders on the Linux host
-MODELS_TASK570_EsoTJ83 = {
+# Explicit mapping for Task602_EsoTJ83 models and their prediction folders on the Linux host
+MODELS_TASK602_EsoTJ83 = {
     # 模型名: preds 目录
-    "BANet": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_predictions/Task570_EsoTJ83/BANetTrainerV2/preds",
-    "BGHNetV4": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_predictions/Task570_EsoTJ83/BGHNetV4Trainer/preds",
-    "MedNeXt": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_predictions/Task570_EsoTJ83/MedNeXt_S_kernel3/preds",
-    "nnUNet": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_predictions/Task570_EsoTJ83/nnUNetTrainerV2/preds",
-    "RWKV_fd": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_predictions/Task570_EsoTJ83/Double_CCA_UPSam_fd_RWKV/preds",
-    "RWKV_fd_loss": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_predictions/Task570_EsoTJ83/Double_CCA_UPSam_fd_loss_RWKV/preds",
-    "UNet3D": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_predictions/Task570_EsoTJ83/UNet3DTrainer/preds",
-}
-# /home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task570_EsoTJ83/nnUNetData_plans_v2.1_trgSp_1x1x1_stage0
+      "nnFormer": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_predictions/Task602_ls/nnFormer",
+    "BGHNetV4": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_predictions/Task602_ls/BGHNetV4Trainer/preds",
+    "MedNeXt": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_predictions/Task602_ls/MedNeXt",
+    "nnUNet": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_predictions/Task602_ls/nnU-Net",
+    "SwinUNETR": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_predictions/Task602_ls/SwinUNETR",
+    "UMamba": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_predictions/Task602_ls/UMamba",
+    "VoComni": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_predictions/Task602_ls/VoComni_nnunet",
+    }
+# /home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task602_EsoTJ83/nnUNetData_plans_v2.1_trgSp_1x1x1_stage0
 #
-# 默认的 Task570 可视化配置（使用 nnUNet 预处理后的 .npy 数据）
-TASK570_DEFAULT_CONFIG = {
+# 默认的 Task602 可视化配置（使用 nnUNet 预处理后的 .npy 数据）
+TASK602_DEFAULT_CONFIG = {
     # 请根据实际生成的 plans 名称调整下行路径中的 plans 标识
-    "data_root": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task570_EsoTJ83/nnUNetData_plans_v2.1_trgSp_1x1x1_stage0",
-    "dataset_directory": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task570_EsoTJ83",
-    "fold": 1,
-    "output_dir": "./Task570_val_vis_all",
+    "data_root": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task602_ls/nnUNetData_plans_v2.1_stage0",
+    "dataset_directory": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task602_ls",
+    "fold": 0,
+    "output_dir": "./Task602_val_vis_all",
     "alpha": 0.99,
     "slices": None,  # None: 每个方向取中间层；也可以改成 [80, 100, ...]
     "save_gt": True,
@@ -434,7 +434,7 @@ def _build_argparser() -> argparse.ArgumentParser:
         required=False,
         help=(
             "List of prediction folders (e.g. different models' validation_raw_postprocessed). "
-            "If omitted, the built-in MODELS_TASK570_EsoTJ83 mapping will be used. "
+            "If omitted, the built-in MODELS_TASK602_EsoTJ83 mapping will be used. "
             "Model name will be inferred from the folder path unless --model_names is given."
         ),
     )
@@ -445,7 +445,7 @@ def _build_argparser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Optional explicit model names aligned with pred_folders. "
-            "If omitted and pred_folders is also omitted, we will use the keys of MODELS_TASK570_EsoTJ83."
+            "If omitted and pred_folders is also omitted, we will use the keys of MODELS_TASK602_EsoTJ83."
         ),
     )
     p_batch.add_argument(
@@ -466,10 +466,10 @@ def _build_argparser() -> argparse.ArgumentParser:
     )
     p_batch.add_argument("--save_gt", action="store_true", help="Also export GT overlays for each slice")
 
-    # task570 default mode: use built-in config and model list
+    # task602 default mode: use built-in config and model list
     subparsers.add_parser(
-        "task570_default",
-        help="Use built-in Task570_EsoTJ83 config and model list to batch visualize all cases",
+        "task602_default",
+        help="Use built-in Task602_EsoTJ83 config and model list to batch visualize all cases",
     )
 
     # Remove legacy top-level arguments to avoid conflicts
@@ -534,12 +534,12 @@ def _run_batch(
     slices: Optional[List[int]],
     save_gt: bool,
 ) -> None:
-    # If no pred_folders provided, fall back to the explicit mapping for Task570_EsoTJ83
+    # If no pred_folders provided, fall back to the explicit mapping for Task602_EsoTJ83
     if not pred_folders:
-        pred_folders = list(MODELS_TASK570_EsoTJ83.values())
+        pred_folders = list(MODELS_TASK602_EsoTJ83.values())
         # if model_names not given, use the keys of the mapping
         if model_names is None or len(model_names) == 0:
-            model_names = list(MODELS_TASK570_EsoTJ83.keys())
+            model_names = list(MODELS_TASK602_EsoTJ83.keys())
 
     # normalize model names
     if model_names is not None and len(model_names) != len(pred_folders):
@@ -691,13 +691,13 @@ def _compose_panels_for_folder(
         print(f"[PANEL] Saved panel to: {panel_path}")
 
 
-def run_task570_batch_default() -> None:
-    """One-click batch visualization for Task570_EsoTJ83 using built-in paths and params.
+def run_task602_batch_default() -> None:
+    """One-click batch visualization for Task602_EsoTJ83 using built-in paths and params.
 
-    1) 使用 MODELS_TASK570_EsoTJ83 对 7 个模型分别输出 overlay 图（含 GT），存放在 output_dir/single。
+    1) 使用 MODELS_TASK602_EsoTJ83 对 7 个模型分别输出 overlay 图（含 GT），存放在 output_dir/single。
     2) 对每个 case+axis+slice 生成 1 张大图（7 个模型 + GT），存放在 output_dir/panels。
     """
-    cfg = TASK570_DEFAULT_CONFIG
+    cfg = TASK602_DEFAULT_CONFIG
     out_dir = cfg["output_dir"]
     _run_batch(
         data_root=cfg["data_root"],
@@ -711,7 +711,7 @@ def run_task570_batch_default() -> None:
         save_gt=cfg["save_gt"],
     )
 
-    model_names = list(MODELS_TASK570_EsoTJ83.keys())
+    model_names = list(MODELS_TASK602_EsoTJ83.keys())
     _compose_panels_for_folder(
         output_dir=out_dir,
         model_names=model_names,
@@ -751,7 +751,7 @@ if __name__ == "__main__":
             slices=args.slices,
             save_gt=getattr(args, "save_gt", False),
         )
-    elif cmd == "task570_default":
-        run_task570_batch_default()
+    elif cmd == "task602_default":
+        run_task602_batch_default()
     else:
         parser.print_help()
