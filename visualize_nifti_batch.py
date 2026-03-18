@@ -126,13 +126,16 @@ def _center_slices_for_axis(
 ) -> List[int]:
     """Compute representative slice indices along a given axis based on GT foreground.
 
-    If fractions is None, a single middle slice of the foreground range is returned.
+    If fractions is None, three slices at 1/3, 1/2 and 2/3 of the foreground range
+    are returned (or fewer if the range is very small).
     """
     if gt_vol is None:
         return []
 
     if fractions is None or len(fractions) == 0:
-        fractions = [0.5]
+        # By default, pick three representative positions along the foreground extent:
+        # approximately upper / middle / lower segments.
+        fractions = [1.0 / 3.0, 0.5, 2.0 / 3.0]
 
     # Boolean mask: for each slice index along `axis`, whether there is any foreground.
     if axis == "z":
