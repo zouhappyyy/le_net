@@ -10,6 +10,8 @@ import matplotlib.pyplot as plt
 from nnunet_mednext.utilities.overlay_plots import generate_overlay
 
 
+
+
 DEFAULT_PARAMS = {
     "images_dir": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_raw_data/Task602_ls/imagesTr",
     "gt_dir": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_raw_data/Task602_ls/labelsTr",
@@ -23,13 +25,13 @@ DEFAULT_PARAMS = {
         "VoComni": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_predictions/Task602_ls/VoComni_nnunet",
     },
     "output_dir": "./Task602_ls_vis",
-    "axes": ["x"],
     "slices": [60, 80, 100],
     "alpha": 0.6,
     "image_suffix": "_0000.nii.gz",
     "pred_suffix": ".nii.gz",
     "gt_suffix": ".nii.gz",
     "cases": None,
+    "mm_per_inch": 50.0,
 }
 
 
@@ -164,14 +166,18 @@ def _axis_slice_spacing(axis: str, spacing: Tuple[float, float, float]) -> Tuple
 
 
 def _slice_extent(
-    axis: str, spacing: Tuple[float, float, float], shape: Tuple[int, int]
+    axis: str,
+    spacing: Tuple[float, float, float],
+    shape: Tuple[int, int],
+    mm_per_inch: float,
 ) -> Tuple[Tuple[float, float, float, float], float, float]:
     row_spacing, col_spacing = _axis_slice_spacing(axis, spacing)
     height_mm = max(shape[0] * row_spacing, 1e-3)
     width_mm = max(shape[1] * col_spacing, 1e-3)
     extent = (0.0, width_mm, 0.0, height_mm)
-    fig_w = max(width_mm / 100.0, 1.0)
-    fig_h = max(height_mm / 100.0, 1.0)
+    scale = max(mm_per_inch, 1e-3)
+    fig_w = max(width_mm / scale, 1.0)
+    fig_h = max(height_mm / scale, 1.0)
     return extent, fig_w, fig_h
 
 
@@ -182,8 +188,9 @@ def _save_overlay_image(
     out_path: str,
     title: Optional[str] = None,
     show_labels: bool = False,
+    mm_per_inch: float = 50.0,
 ) -> None:
-    extent, fig_w, fig_h = _slice_extent(axis, spacing, overlay.shape[:2])
+    extent, fig_w, fig_h = _slice_extent(axis, spacing, overlay.shape[:2], mm_per_inch)
     fig, ax = plt.subplots(figsize=(fig_w, fig_h))
     ax.imshow(overlay, extent=extent, origin="lower")
     if show_labels:
@@ -195,7 +202,7 @@ def _save_overlay_image(
     ax.set_xlim(extent[0], extent[1])
     ax.set_ylim(extent[2], extent[3])
     ax.axis("off")
-    fig.savefig(out_path, dpi=150, bbox_inches="tight", pad_inches=0)
+    fig.savefig(out_path, dpi=150)
     plt.close(fig)
 
 
@@ -253,6 +260,7 @@ def process_case(
     image_suffix: Optional[str],
     pred_suffix: Optional[str],
     gt_suffix: Optional[str],
+    mm_per_inch: float,
 ) -> None:
     overlays_dir = os.path.join(output_dir, "overlays", case_id)
     panels_dir = os.path.join(output_dir, "panels")
@@ -319,7 +327,7 @@ def process_case(
                 overlay = generate_overlay(img_slice, pred_slice, overlay_intensity=alpha)
                 out_name = f"{case_id}_{model_name}_axis-{axis}_slice-{actual_idx}.png"
                 out_path = os.path.join(overlays_dir, out_name)
-                _save_overlay_image(overlay, axis, spacing, out_path, show_labels=True)
+                _save_overlay_image(overlay, axis, spacing, out_path, show_labels=True, mm_per_inch=mm_per_inch)
                 panel_images.append(overlay)
                 panel_titles.append(model_name)
 
@@ -330,7 +338,15 @@ def process_case(
                     overlay_gt = generate_overlay(img_slice, gt_slice, mapping=mapping, overlay_intensity=alpha)
                     out_name = f"{case_id}_GT_axis-{axis}_slice-{actual_idx}.png"
                     out_path = os.path.join(overlays_dir, out_name)
-                    _save_overlay_image(overlay_gt, axis, spacing, out_path, title="GT", show_labels=True)
+                    _save_overlay_image(
+                        overlay_gt,
+                        axis,
+                        spacing,
+                        out_path,
+                        title="GT",
+                        show_labels=True,
+                        mm_per_inch=mm_per_inch,
+                    )
                     panel_images.append(overlay_gt)
                     panel_titles.append("GT")
                 else:
@@ -340,7 +356,12 @@ def process_case(
 
             if panel_images:
                 cols = len(panel_images)
-                extent, fig_w, fig_h = _slice_extent(axis, spacing, panel_images[0].shape[:2])
+                extent, fig_w, fig_h = _slice_extent(
+                    axis,
+                    spacing,
+                    panel_images[0].shape[:2],
+                    mm_per_inch,
+                )
                 fig, axes_fig = plt.subplots(1, cols, figsize=(fig_w * cols, fig_h))
                 if cols == 1:
                     axes_fig = [axes_fig]
@@ -402,6 +423,12 @@ def build_argparser() -> argparse.ArgumentParser:
         action="store_true",
         help="Use DEFAULT_PARAMS so most arguments can be omitted.",
     )
+    parser.add_argument(
+        "--mm_per_inch",
+        type=float,
+        default=None,
+        help="Millimeters per inch for output image scaling.",
+    )
     return parser
 
 
@@ -434,6 +461,7 @@ def main() -> None:
     pred_suffix = args.pred_suffix if args.pred_suffix is not None else config.get("pred_suffix")
     gt_suffix = args.gt_suffix if args.gt_suffix is not None else config.get("gt_suffix")
     case_filter = args.cases if args.cases is not None else config.get("cases")
+    mm_per_inch = args.mm_per_inch if args.mm_per_inch is not None else config.get("mm_per_inch", 50.0)
 
     if not os.path.isdir(images_dir):
         raise NotADirectoryError(f"images_dir does not exist: {images_dir}")
@@ -465,6 +493,7 @@ def main() -> None:
             image_suffix=image_suffix,
             pred_suffix=pred_suffix,
             gt_suffix=gt_suffix,
+            mm_per_inch=mm_per_inch,
         )
 
 
