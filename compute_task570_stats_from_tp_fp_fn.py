@@ -244,12 +244,12 @@ def write_aggregate_csv(
 
 if __name__ == "__main__":  # 使用时更推荐通过命令行调用，见下方示例
     # 示例1：从子集 FN/FP/GT CSV 计算每 case 的高级指标
-    in_csv = "./Task570_sub40/fn_1.csv"
-    out_csv = "./Task570_sub40/metrics_cases.csv"
+    in_csv = "./Task602_metrics_all_models/metrics_task602_11.csv"
+    out_csv = "./Task602_metrics_all_models/metrics_cases.csv"
     process_tp_fp_fn_csv(in_csv, out_csv)
 
     # 示例2：在上一步结果基础上，按模型计算整个子集的数据集平均指标
     # 注意：这里假设 out_csv 里已经有 "model" 列和四个 metric 列
     mean_rows, metric_cols = aggregate_mean_metrics_by_model(out_csv, group_by_label=False)
-    mean_csv = "./Task570_sub40/metrics_shiyan.csv"
+    mean_csv = "./Task602_metrics_all_models/metrics_602.csv"
     write_aggregate_csv(mean_rows, metric_cols, mean_csv, group_by_label=False)

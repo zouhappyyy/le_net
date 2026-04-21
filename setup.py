@@ -11,6 +11,7 @@ setup(name='mednextv1',
       install_requires=[
             # "torch>1.10.0",
             "tqdm",
+            "openpyxl",
             # "dicom2nifti",
             # "scikit-image>=0.14",
             # "medpy",
