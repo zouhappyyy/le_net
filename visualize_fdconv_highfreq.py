@@ -48,6 +48,8 @@ def visualize_fdconv_highfreq_3d(
     shape=(1, 32, 32, 128, 128),
     k_list=(2, 4, 8),
     lowfreq_att: bool = False,
+    learnable_bands: bool = False,
+    soft_band_beta: float = 30.0,
     device: str = None,
     save_path_prefix: str = "fdconv_highfreq_3d",
     # 新增：支持从真实数据加载
@@ -91,6 +93,8 @@ def visualize_fdconv_highfreq_3d(
         in_channels=in_channels,
         k_list=list(k_list),
         lowfreq_att=lowfreq_att,
+        learnable_bands=learnable_bands,
+        soft_band_beta=soft_band_beta,
         spatial_group=1,
         spatial_kernel=3,
     ).to(device)
@@ -212,6 +216,8 @@ def _build_argparser():
     parser.add_argument("--shape", type=int, nargs=5, metavar=("B", "C", "D", "H", "W"), default=[1, 32, 32, 128, 128], help="Input shape for random mode: B C D H W")
     parser.add_argument("--k_list", type=int, nargs="+", default=[2, 4, 8], help="k_list for FrequencyBandModulation3D")
     parser.add_argument("--lowfreq_att", action="store_true", help="Enable low frequency attention in FBM")
+    parser.add_argument("--learnable_bands", action="store_true", help="Use learnable soft frequency band masks in FBM")
+    parser.add_argument("--soft_band_beta", type=float, default=30.0, help="Soft-mask slope beta when --learnable_bands is enabled")
     parser.add_argument("--device", type=str, default=None, choices=["cpu", "cuda", None], help="Device to run on (cpu/cuda), default auto")
     parser.add_argument("--save_prefix", type=str, default="fdconv_highfreq_3d", help="Prefix of output png file")
     # 新增：从数据集加载时需要的参数
@@ -233,6 +239,8 @@ if __name__ == "__main__":
         shape=shape,
         k_list=tuple(args.k_list),
         lowfreq_att=args.lowfreq_att,
+        learnable_bands=args.learnable_bands,
+        soft_band_beta=args.soft_band_beta,
         device=None if args.device in (None, "None") else args.device,
         save_path_prefix=args.save_prefix,
         data_root=args.data_root,
@@ -246,3 +254,7 @@ if __name__ == "__main__":
 #   --case_id ESO_TJ_60011222468 \
 #   --channel 0 \
 #   --save_prefix fdconv_highfreq_real
+
+
+# python visualize_fdconv_highfreq.py --k_list 2 4 8 --save_prefix fdconv_fixed
+# python visualize_fdconv_highfreq.py --k_list 2 4 8 --learnable_bands --soft_band_beta 30 --save_prefix fdconv_learnable

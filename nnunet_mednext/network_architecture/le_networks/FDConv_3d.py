@@ -268,14 +268,25 @@ class FrequencyBandModulation3D(nn.Module):
 
     def __init__(self, in_channels, k_list=[2], lowfreq_att=False, fs_feat='feat',
                  act='sigmoid', spatial='conv', spatial_group=1, spatial_kernel=3,
-                 init='zero', max_size=(64, 64, 64), **kwargs):
+                 init='zero', max_size=(64, 64, 64),
+                 learnable_bands: bool = False,
+                 soft_band_beta: float = 30.0,
+                 max_learnable_radius: float = 0.499,
+                 min_radius_eps: float = 1e-4,
+                 **kwargs):
         super().__init__()
-        self.k_list = k_list
+        self.k_list = sorted(list(k_list))
+        if len(self.k_list) == 0:
+            raise ValueError("k_list must not be empty")
         self.lowfreq_att = lowfreq_att
         self.in_channels = in_channels
         self.act = act
         self.spatial_group = spatial_group if spatial_group <= 64 else in_channels
         self.spatial_kernel = spatial_kernel
+        self.learnable_bands = learnable_bands
+        self.soft_band_beta = float(soft_band_beta)
+        self.max_learnable_radius = float(max_learnable_radius)
+        self.min_radius_eps = float(min_radius_eps)
         # 初始化分组卷积层：每个频段对应一个卷积层（生成频段注意力）
         self.freq_weight_conv_list = nn.ModuleList()
         num_layers = len(k_list) + (1 if lowfreq_att else 0)
@@ -290,9 +301,60 @@ class FrequencyBandModulation3D(nn.Module):
             self.freq_weight_conv_list.append(conv3d)
 
         max_d, max_h, max_w = max_size
-        # cached_masks: [num_masks, 1, max_d, max_h, max_w_out]
-        # 预计算并缓存不同频率的掩码（避免每次前向重复计算）
-        self.register_buffer('cached_masks', self._precompute_masks(max_size, k_list), persistent=False)
+        if self.learnable_bands:
+            base_radii = torch.tensor([0.5 / float(k) for k in self.k_list], dtype=torch.float32)
+            self.band_radius_logits = nn.Parameter(self._init_band_radius_logits(base_radii))
+            self.register_buffer('cached_freq_dist', self._precompute_freq_dist(max_size), persistent=False)
+        else:
+            # cached_masks: [num_masks, 1, max_d, max_h, max_w_out]
+            # 预计算并缓存不同频率的掩码（避免每次前向重复计算）
+            self.register_buffer('cached_masks', self._precompute_masks(max_size, self.k_list), persistent=False)
+
+    def _precompute_freq_dist(self, max_size):
+        max_d, max_h, max_w = max_size
+        _, freq_grid = get_fft3freq(max_d, max_h, max_w, use_rfft=True)
+        freq_dist = torch.norm(freq_grid, dim=-1)
+        return freq_dist.unsqueeze(0).unsqueeze(0)  # [1, 1, D, H, W_out]
+
+    def _init_band_radius_logits(self, base_radii: torch.Tensor) -> torch.Tensor:
+        # 参数化方式：r0=max_radius*sigmoid(a0), ri=ri-1*sigmoid(ai)，保证 0<ri<ri-1
+        base_radii = base_radii.clamp(min=self.min_radius_eps, max=self.max_learnable_radius - self.min_radius_eps)
+        logits = torch.empty_like(base_radii)
+        ratio0 = (base_radii[0] / self.max_learnable_radius).clamp(1e-4, 1 - 1e-4)
+        logits[0] = torch.logit(ratio0)
+        for i in range(1, base_radii.numel()):
+            ratio = (base_radii[i] / base_radii[i - 1]).clamp(1e-4, 1 - 1e-4)
+            logits[i] = torch.logit(ratio)
+        return logits
+
+    def _get_learnable_radii(self) -> torch.Tensor:
+        factors = torch.sigmoid(self.band_radius_logits).clamp(1e-4, 1 - 1e-4)
+        radii = []
+        prev = (self.max_learnable_radius * factors[0]).clamp(min=self.min_radius_eps)
+        radii.append(prev)
+        for i in range(1, factors.numel()):
+            cur = prev * factors[i]
+            # 保留最小间隔，避免频带塌缩成几乎同一半径
+            upper_bound = torch.clamp(prev - self.min_radius_eps, min=self.min_radius_eps)
+            cur = torch.minimum(cur, upper_bound)
+            radii.append(cur)
+            prev = cur
+        return torch.stack(radii, dim=0)
+
+    def _get_band_masks(self, freq_d, freq_h, freq_w):
+        if self.learnable_bands:
+            freq_dist = F.interpolate(
+                self.cached_freq_dist,
+                size=(freq_d, freq_h, freq_w),
+                mode='trilinear',
+                align_corners=False,
+            )
+            radii = self._get_learnable_radii().to(device=freq_dist.device, dtype=freq_dist.dtype)
+            masks = [torch.sigmoid(self.soft_band_beta * (r - freq_dist)) for r in radii]
+            return masks
+
+        current_masks = F.interpolate(self.cached_masks.float(), size=(freq_d, freq_h, freq_w), mode='nearest')
+        return [current_masks[idx] for idx in range(len(self.k_list))]
 
     def _precompute_masks(self, max_size, k_list):
         max_d, max_h, max_w = max_size
@@ -323,15 +385,15 @@ class FrequencyBandModulation3D(nn.Module):
 
         # 1. 特征转换至频域 3D rfftn -> 频域
         x_fft = torch.fft.rfftn(x, s=(d, h, w), dim=(-3, -2, -1), norm='ortho')
-        # 2. 加载预计算掩码并调整尺寸
-        current_masks = F.interpolate(self.cached_masks.float(), size=(freq_d, freq_h, freq_w), mode='nearest')
+        # 2. 计算频段掩码（固定掩码或可学习软掩码）
+        band_masks = self._get_band_masks(freq_d, freq_h, freq_w)
 
         # 累计所有高频残差，用于需要时输出 high_acc
         high_acc = torch.zeros_like(x)
 
         # 3. 按频段分割并增强（高频段）
-        for idx, k in enumerate(self.k_list):
-            mask = current_masks[idx]  # [1, D, H, W_out]
+        for idx, _ in enumerate(self.k_list):
+            mask = band_masks[idx]  # [1, 1, D, H, W_out]
             # 低频 / 高频 分割
             low_part = torch.fft.irfftn(x_fft * mask, s=(d, h, w), dim=(-3, -2, -1), norm='ortho')
             high_part = pre_x - low_part
