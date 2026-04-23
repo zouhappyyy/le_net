@@ -8,6 +8,7 @@ from nnunet_mednext.network_architecture.mednextv1.blocks import (
     MedNeXtBlock,
     OutBlock,
 )
+from .FDConv_3d import FrequencyBandModulation3D
 
 
 class FusionBlock3D(nn.Module):
@@ -116,6 +117,11 @@ class Double_RWKV_MedNeXt_Encoder(nn.Module):
         grn: bool = False,
         fusion_mode: str = "concat",
         rwkv_base_ch: int = None,
+        # optional FBM for first two encoder stages
+        fbm_k_list=None,
+        fbm_learnable: bool = False,
+        fbm_soft_beta: float = 30.0,
+        fbm_max_size=(128, 128, 128),
     ):
         super().__init__()
 
@@ -158,6 +164,12 @@ class Double_RWKV_MedNeXt_Encoder(nn.Module):
         self.fuse3 = FusionBlock3D(8 * C, 8 * Cr, 8 * C, mode=fusion_mode)   # 对应 feats_med[3]
         self.fuse4 = FusionBlock3D(16 * C, 16 * Cr, 16 * C, mode=fusion_mode)  # 对应 bottleneck 输入
 
+        # 可选：在 encoder 的前两层加入 FrequencyBandModulation3D
+        if fbm_k_list is not None:
+            # f0 channels = C, f1 channels = 2*C
+            self.fbm0 = FrequencyBandModulation3D(in_channels=C, k_list=list(fbm_k_list), learnable_bands=fbm_learnable, soft_band_beta=fbm_soft_beta, max_size=fbm_max_size)
+            self.fbm1 = FrequencyBandModulation3D(in_channels=2 * C, k_list=list(fbm_k_list), learnable_bands=fbm_learnable, soft_band_beta=fbm_soft_beta, max_size=fbm_max_size)
+
     def forward(self, x: torch.Tensor):
         # MedNeXt 多尺度特征：[C, 2C, 4C, 8C, 16C]
         feats_med = self.mednext_enc.forward_encoder(x)
@@ -165,6 +177,18 @@ class Double_RWKV_MedNeXt_Encoder(nn.Module):
         # 前两层：只使用 MedNeXt
         f0 = feats_med[0]  # C
         f1 = feats_med[1]  # 2C
+        # 若配置了 FBM，则在这里对前两层做频带分解增强
+        if hasattr(self, 'fbm0'):
+            try:
+                f0 = self.fbm0(f0)
+            except Exception:
+                # in case FBM expects specific device/dtype handling
+                f0 = self.fbm0(f0.to(next(self.fbm0.parameters()).device))
+        if hasattr(self, 'fbm1'):
+            try:
+                f1 = self.fbm1(f1)
+            except Exception:
+                f1 = self.fbm1(f1.to(next(self.fbm1.parameters()).device))
 
         # 从 MedNeXt 的第三层特征（4C）开始送入 RWKV 编码器
         rwkv_feat_2, rwkv_feat_3, rwkv_feat_4 = self.rwkv_enc.forward_from_feat(feats_med[2])
@@ -218,169 +242,178 @@ class Double_RWKV_MedNeXt(nn.Module):
         grn: bool = False,
         fusion_mode: str = "concat",
         rwkv_base_ch: int = None,
-    ):
-        super().__init__()
+        # FBM args to forward into encoder
+        fbm_k_list=None,
+        fbm_learnable: bool = False,
+        fbm_soft_beta: float = 30.0,
+        fbm_max_size=(128,128,128),
+     ):
+         super().__init__()
 
-        self.do_ds = deep_supervision
-        assert dim in ["2d", "3d"]
+         self.do_ds = deep_supervision
+         assert dim in ["2d", "3d"]
 
-        # 统一 kernel\_size 设置
-        if kernel_size is not None:
-            enc_kernel_size = kernel_size
-            dec_kernel_size = kernel_size
+         # 统一 kernel\_size 设置
+         if kernel_size is not None:
+             enc_kernel_size = kernel_size
+             dec_kernel_size = kernel_size
 
-        if block_counts is None:
-            # 与 MedNeXt 默认一致
-            block_counts = [2, 2, 2, 2, 2, 2, 2, 2, 2]
+         if block_counts is None:
+             # 与 MedNeXt 默认一致
+             block_counts = [2, 2, 2, 2, 2, 2, 2, 2, 2]
 
-        # ---------- Encoder: 双分支 ----------
-        self.encoder = Double_RWKV_MedNeXt_Encoder(
-            in_channels=in_channels,
-            n_channels=n_channels,
-            exp_r=exp_r,
-            kernel_size=enc_kernel_size,
-            enc_kernel_size=enc_kernel_size,
-            dec_kernel_size=dec_kernel_size,
-            deep_supervision=False,          # encoder 不需要 DS
-            do_res=do_res,
-            do_res_up_down=do_res_up_down,
-            checkpoint_style=checkpoint_style,
-            block_counts=block_counts,
-            norm_type=norm_type,
-            dim=dim,
-            grn=grn,
-            fusion_mode=fusion_mode,
-            rwkv_base_ch=rwkv_base_ch,
-        )
+         # ---------- Encoder: 双分支 ----------
+         self.encoder = Double_RWKV_MedNeXt_Encoder(
+             in_channels=in_channels,
+             n_channels=n_channels,
+             exp_r=exp_r,
+             kernel_size=enc_kernel_size,
+             enc_kernel_size=enc_kernel_size,
+             dec_kernel_size=dec_kernel_size,
+             deep_supervision=False,          # encoder 不需要 DS
+             do_res=do_res,
+             do_res_up_down=do_res_up_down,
+             checkpoint_style=checkpoint_style,
+             block_counts=block_counts,
+             norm_type=norm_type,
+             dim=dim,
+             grn=grn,
+             fusion_mode=fusion_mode,
+             rwkv_base_ch=rwkv_base_ch,
+             fbm_k_list=fbm_k_list,
+             fbm_learnable=fbm_learnable,
+             fbm_soft_beta=fbm_soft_beta,
+             fbm_max_size=fbm_max_size,
+         )
 
-        # ---------- Decoder，与 MedNeXt 一致 ----------
+         # ---------- Decoder，与 MedNeXt 一致 ----------
 
-        if dim == "2d":
-            conv = nn.Conv2d
-        else:
-            conv = nn.Conv3d
+         if dim == "2d":
+             conv = nn.Conv2d
+         else:
+             conv = nn.Conv3d
 
-        C = n_channels
-        if isinstance(exp_r, int):
-            exp_r = [exp_r for _ in range(len(block_counts))]
+         C = n_channels
+         if isinstance(exp_r, int):
+             exp_r = [exp_r for _ in range(len(block_counts))]
 
-        # up\_3: 16C -> 8C
-        self.up_3 = MedNeXtUpBlock(
-            in_channels=16 * C,
-            out_channels=8 * C,
-            exp_r=exp_r[5],
-            kernel_size=dec_kernel_size,
-            do_res=do_res_up_down,
-            norm_type=norm_type,
-            dim=dim,
-            grn=grn,
-        )
-        self.dec_block_3 = nn.Sequential(
-            *[
-                MedNeXtBlock(
-                    in_channels=8 * C,
-                    out_channels=8 * C,
-                    exp_r=exp_r[5],
-                    kernel_size=dec_kernel_size,
-                    do_res=do_res,
-                    norm_type=norm_type,
-                    dim=dim,
-                    grn=grn,
-                )
-                for _ in range(block_counts[5])
-            ]
-        )
+         # up\_3: 16C -> 8C
+         self.up_3 = MedNeXtUpBlock(
+             in_channels=16 * C,
+             out_channels=8 * C,
+             exp_r=exp_r[5],
+             kernel_size=dec_kernel_size,
+             do_res=do_res_up_down,
+             norm_type=norm_type,
+             dim=dim,
+             grn=grn,
+         )
+         self.dec_block_3 = nn.Sequential(
+             *[
+                 MedNeXtBlock(
+                     in_channels=8 * C,
+                     out_channels=8 * C,
+                     exp_r=exp_r[5],
+                     kernel_size=dec_kernel_size,
+                     do_res=do_res,
+                     norm_type=norm_type,
+                     dim=dim,
+                     grn=grn,
+                 )
+                 for _ in range(block_counts[5])
+             ]
+         )
 
-        # up\_2: 8C -> 4C
-        self.up_2 = MedNeXtUpBlock(
-            in_channels=8 * C,
-            out_channels=4 * C,
-            exp_r=exp_r[6],
-            kernel_size=dec_kernel_size,
-            do_res=do_res_up_down,
-            norm_type=norm_type,
-            dim=dim,
-            grn=grn,
-        )
-        self.dec_block_2 = nn.Sequential(
-            *[
-                MedNeXtBlock(
-                    in_channels=4 * C,
-                    out_channels=4 * C,
-                    exp_r=exp_r[6],
-                    kernel_size=dec_kernel_size,
-                    do_res=do_res,
-                    norm_type=norm_type,
-                    dim=dim,
-                    grn=grn,
-                )
-                for _ in range(block_counts[6])
-            ]
-        )
+         # up\_2: 8C -> 4C
+         self.up_2 = MedNeXtUpBlock(
+             in_channels=8 * C,
+             out_channels=4 * C,
+             exp_r=exp_r[6],
+             kernel_size=dec_kernel_size,
+             do_res=do_res_up_down,
+             norm_type=norm_type,
+             dim=dim,
+             grn=grn,
+         )
+         self.dec_block_2 = nn.Sequential(
+             *[
+                 MedNeXtBlock(
+                     in_channels=4 * C,
+                     out_channels=4 * C,
+                     exp_r=exp_r[6],
+                     kernel_size=dec_kernel_size,
+                     do_res=do_res,
+                     norm_type=norm_type,
+                     dim=dim,
+                     grn=grn,
+                 )
+                 for _ in range(block_counts[6])
+             ]
+         )
 
-        # up\_1: 4C -> 2C
-        self.up_1 = MedNeXtUpBlock(
-            in_channels=4 * C,
-            out_channels=2 * C,
-            exp_r=exp_r[7],
-            kernel_size=dec_kernel_size,
-            do_res=do_res_up_down,
-            norm_type=norm_type,
-            dim=dim,
-            grn=grn,
-        )
-        self.dec_block_1 = nn.Sequential(
-            *[
-                MedNeXtBlock(
-                    in_channels=2 * C,
-                    out_channels=2 * C,
-                    exp_r=exp_r[7],
-                    kernel_size=dec_kernel_size,
-                    do_res=do_res,
-                    norm_type=norm_type,
-                    dim=dim,
-                    grn=grn,
-                )
-                for _ in range(block_counts[7])
-            ]
-        )
+         # up\_1: 4C -> 2C
+         self.up_1 = MedNeXtUpBlock(
+             in_channels=4 * C,
+             out_channels=2 * C,
+             exp_r=exp_r[7],
+             kernel_size=dec_kernel_size,
+             do_res=do_res_up_down,
+             norm_type=norm_type,
+             dim=dim,
+             grn=grn,
+         )
+         self.dec_block_1 = nn.Sequential(
+             *[
+                 MedNeXtBlock(
+                     in_channels=2 * C,
+                     out_channels=2 * C,
+                     exp_r=exp_r[7],
+                     kernel_size=dec_kernel_size,
+                     do_res=do_res,
+                     norm_type=norm_type,
+                     dim=dim,
+                     grn=grn,
+                 )
+                 for _ in range(block_counts[7])
+             ]
+         )
 
-        # up\_0: 2C -> C
-        self.up_0 = MedNeXtUpBlock(
-            in_channels=2 * C,
-            out_channels=C,
-            exp_r=exp_r[8],
-            kernel_size=dec_kernel_size,
-            do_res=do_res_up_down,
-            norm_type=norm_type,
-            dim=dim,
-            grn=grn,
-        )
-        self.dec_block_0 = nn.Sequential(
-            *[
-                MedNeXtBlock(
-                    in_channels=C,
-                    out_channels=C,
-                    exp_r=exp_r[8],
-                    kernel_size=dec_kernel_size,
-                    do_res=do_res,
-                    norm_type=norm_type,
-                    dim=dim,
-                    grn=grn,
-                )
-                for _ in range(block_counts[8])
-            ]
-        )
+         # up\_0: 2C -> C
+         self.up_0 = MedNeXtUpBlock(
+             in_channels=2 * C,
+             out_channels=C,
+             exp_r=exp_r[8],
+             kernel_size=dec_kernel_size,
+             do_res=do_res_up_down,
+             norm_type=norm_type,
+             dim=dim,
+             grn=grn,
+         )
+         self.dec_block_0 = nn.Sequential(
+             *[
+                 MedNeXtBlock(
+                     in_channels=C,
+                     out_channels=C,
+                     exp_r=exp_r[8],
+                     kernel_size=dec_kernel_size,
+                     do_res=do_res,
+                     norm_type=norm_type,
+                     dim=dim,
+                     grn=grn,
+                 )
+                 for _ in range(block_counts[8])
+             ]
+         )
 
-        # 输出 head
-        self.out_0 = OutBlock(in_channels=C, n_classes=n_classes, dim=dim)
+         # 输出 head
+         self.out_0 = OutBlock(in_channels=C, n_classes=n_classes, dim=dim)
 
-        # deep supervision heads（与 MedNeXt 一致的位置）
-        if self.do_ds:
-            self.out_1 = OutBlock(in_channels=2 * C, n_classes=n_classes, dim=dim)
-            self.out_2 = OutBlock(in_channels=4 * C, n_classes=n_classes, dim=dim)
-            self.out_3 = OutBlock(in_channels=8 * C, n_classes=n_classes, dim=dim)
-            self.out_4 = OutBlock(in_channels=16 * C, n_classes=n_classes, dim=dim)
+         # deep supervision heads（与 MedNeXt 一致的位置）
+         if self.do_ds:
+             self.out_1 = OutBlock(in_channels=2 * C, n_classes=n_classes, dim=dim)
+             self.out_2 = OutBlock(in_channels=4 * C, n_classes=n_classes, dim=dim)
+             self.out_3 = OutBlock(in_channels=8 * C, n_classes=n_classes, dim=dim)
+             self.out_4 = OutBlock(in_channels=16 * C, n_classes=n_classes, dim=dim)
 
     def forward(self, x: torch.Tensor):
         # encoder 返回 \[C, 2C, 4C, 8C, 16C]

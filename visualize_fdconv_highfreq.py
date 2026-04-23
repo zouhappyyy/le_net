@@ -209,6 +209,170 @@ def visualize_fdconv_highfreq_3d(
     plt.close(fig3d)
     print(f"Saved FDConv high-frequency 3D MIP visualization to: {png_path_3d}")
 
+    # -------- Per-band 可视化（仅在从真实数据加载时生成） --------
+    if data_root is not None and case_id is not None:
+        try:
+            # 使用 FBM 内部方法计算每个频带的掩码，并重构每个频带的高频残差
+            with torch.no_grad():
+                b, c, d, h, w = x.shape
+                x_fft = torch.fft.rfftn(x, s=(d, h, w), dim=(-3, -2, -1), norm='ortho')
+                # 获取 band masks，注意 FBM 接口需要 freq_w = w//2+1
+                band_masks = fbm._get_band_masks(d, h, w // 2 + 1)
+
+                pre_x = x.clone()
+                per_band_raw = []
+                per_band_weighted = []
+                att_feat = x  # 与 FBM.forward 一致的默认 att_feat
+                for idx in range(len(band_masks)):
+                    mask = band_masks[idx].to(x.device)
+                    low_part = torch.fft.irfftn(x_fft * mask, s=(d, h, w), dim=(-3, -2, -1), norm='ortho')
+                    high_part = pre_x - low_part
+                    pre_x = low_part
+                    per_band_raw.append(high_part.detach().cpu().numpy())
+
+                    # 计算 FBM 中用于加权的 freq_weight -> activated
+                    if idx < len(fbm.freq_weight_conv_list):
+                        freq_weight = fbm.freq_weight_conv_list[idx](att_feat)
+                        freq_weight = fbm._activate(freq_weight)
+                        # 重建与 forward 中相同的按组加权
+                        group = fbm.spatial_group
+                        tmp = freq_weight.reshape(b, group, -1, d, h, w) * high_part.reshape(b, group, -1, d, h, w)
+                        band_weighted = tmp.reshape(b, -1, d, h, w)
+                        per_band_weighted.append(band_weighted.detach().cpu().numpy())
+                    else:
+                        per_band_weighted.append(high_part.detach().cpu().numpy())
+
+                # 最后 pre_x 为低频累积
+                low_final_full = pre_x.detach().cpu().numpy()
+
+            # 保存每个频带的 slice 与 3D MIP
+            for i, (raw_np, w_np) in enumerate(zip(per_band_raw, per_band_weighted), start=1):
+                # raw_np shape: [B, Cband, D, H, W]
+                raw_mean = raw_np.mean(axis=1)[0]  # [D,H,W]
+                w_mean = w_np.mean(axis=1)[0]
+
+                # 中间切片
+                mid = raw_mean.shape[0] // 2
+                raw_slice = raw_mean[mid]
+                w_slice = w_mean[mid]
+                # normalize for display but keep comparable ranges
+                def _norm_for_display(arr):
+                    a = arr.astype('float32')
+                    vmin, vmax = float(a.min()), float(a.max())
+                    if vmax > vmin:
+                        return (a - vmin) / (vmax - vmin)
+                    return a * 0.0
+                raw_slice_n = _norm_for_display(raw_slice)
+                w_slice_n = _norm_for_display(w_slice)
+
+                # difference and ratio maps
+                eps = 1e-8
+                diff_slice = w_slice - raw_slice
+                # symmetric normalization for diff
+                max_abs = max(abs(diff_slice).max(), 1e-8)
+                diff_slice_n = diff_slice / max_abs
+                ratio_slice = w_slice / (raw_slice + eps)
+                # clip ratio for display to [0, RMAX]
+                RMAX = 5.0
+                ratio_slice_clipped = np.clip(ratio_slice, 0.0, RMAX) / RMAX
+
+                # histogram data
+                raw_vals = raw_slice.flatten()
+                w_vals = w_slice.flatten()
+
+                figb, axb = plt.subplots(2, 2, figsize=(10, 8))
+                axb[0,0].imshow(raw_slice_n, cmap='gray'); axb[0,0].set_title(f'Band {i} raw slice'); axb[0,0].axis('off')
+                axb[0,1].imshow(w_slice_n, cmap='gray'); axb[0,1].set_title(f'Band {i} weighted slice'); axb[0,1].axis('off')
+                im = axb[1,0].imshow(diff_slice_n, cmap='RdBu', vmin=-1, vmax=1); axb[1,0].set_title('Weighted - Raw (normalized)'); axb[1,0].axis('off')
+                axb[1,1].hist([raw_vals, w_vals], bins=50, label=['raw','weighted'], color=['0.3','0.7']); axb[1,1].set_title('Intensity hist'); axb[1,1].legend()
+                figb.colorbar(im, ax=axb[1,0], fraction=0.046, pad=0.04)
+                png_band_slice = f"{save_path_prefix}_{case_id}_band{i}_comparison_slice.png"
+                figb.savefig(png_band_slice, dpi=200)
+                plt.close(figb)
+
+                # 3D MIP 三视图
+                def _mip_views_np(vol):
+                    axial = vol.max(axis=0)
+                    coronal = vol.max(axis=1)
+                    sagittal = vol.max(axis=2)
+                    return axial, coronal, sagittal
+
+                raw_ax, raw_cor, raw_sag = _mip_views_np(raw_mean)
+                w_ax, w_cor, w_sag = _mip_views_np(w_mean)
+
+                # 归一化
+                def _norm_arr(a):
+                    a = a.astype(np.float32)
+                    vmin, vmax = float(a.min()), float(a.max())
+                    if vmax > vmin:
+                        return (a - vmin) / (vmax - vmin)
+                    return np.zeros_like(a)
+
+                raw_ax, raw_cor, raw_sag = map(_norm_arr, (raw_ax, raw_cor, raw_sag))
+                w_ax, w_cor, w_sag = map(_norm_arr, (w_ax, w_cor, w_sag))
+
+                # compute diff and ratio MIPs for 3D
+                diff_ax, diff_cor, diff_sag = _mip_views_np(w_mean - raw_mean)
+                # normalize diffs symmetrically
+                maxabs = max(abs(diff_ax).max(), abs(diff_cor).max(), abs(diff_sag).max(), 1e-8)
+                diff_ax_n = diff_ax / maxabs
+                diff_cor_n = diff_cor / maxabs
+                diff_sag_n = diff_sag / maxabs
+
+                # ratio maps (clipped)
+                def _ratio_map(a, b, rmax=5.0):
+                    r = b / (a + 1e-8)
+                    return np.clip(r, 0.0, rmax) / rmax
+
+                raw_ax_n, raw_cor_n, raw_sag_n = raw_ax, raw_cor, raw_sag
+                w_ax_n, w_cor_n, w_sag_n = w_ax, w_cor, w_sag
+                ratio_ax = _ratio_map(raw_ax_n, w_ax_n)
+                ratio_cor = _ratio_map(raw_cor_n, w_cor_n)
+                ratio_sag = _ratio_map(raw_sag_n, w_sag_n)
+
+                fig3, axes3 = plt.subplots(3, 4, figsize=(16, 12))
+                # row0 raw, row1 weighted, row2 diff, extra col ratios
+                axes3[0, 0].imshow(raw_ax_n, cmap='gray'); axes3[0, 0].set_title(f'Band {i} raw - axial'); axes3[0, 0].axis('off')
+                axes3[0, 1].imshow(raw_cor_n, cmap='gray'); axes3[0, 1].set_title('raw - coronal'); axes3[0, 1].axis('off')
+                axes3[0, 2].imshow(raw_sag_n, cmap='gray'); axes3[0, 2].set_title('raw - sagittal'); axes3[0, 2].axis('off')
+                axes3[0, 3].axis('off')
+
+                axes3[1, 0].imshow(w_ax_n, cmap='gray'); axes3[1, 0].set_title('weighted - axial'); axes3[1, 0].axis('off')
+                axes3[1, 1].imshow(w_cor_n, cmap='gray'); axes3[1, 1].set_title('weighted - coronal'); axes3[1, 1].axis('off')
+                axes3[1, 2].imshow(w_sag_n, cmap='gray'); axes3[1, 2].set_title('weighted - sagittal'); axes3[1, 2].axis('off')
+                axes3[1, 3].axis('off')
+
+                im0 = axes3[2, 0].imshow(diff_ax_n, cmap='RdBu', vmin=-1, vmax=1); axes3[2, 0].set_title('diff - axial'); axes3[2, 0].axis('off')
+                axes3[2, 1].imshow(diff_cor_n, cmap='RdBu', vmin=-1, vmax=1); axes3[2, 1].set_title('diff - coronal'); axes3[2, 1].axis('off')
+                axes3[2, 2].imshow(diff_sag_n, cmap='RdBu', vmin=-1, vmax=1); axes3[2, 2].set_title('diff - sagittal'); axes3[2, 2].axis('off')
+                # ratio maps in last col
+                axes3[0, 3].imshow(ratio_ax, cmap='inferno'); axes3[0, 3].set_title('ratio axial (clipped)'); axes3[0, 3].axis('off')
+                axes3[1, 3].imshow(ratio_cor, cmap='inferno'); axes3[1, 3].set_title('ratio coronal (clipped)'); axes3[1, 3].axis('off')
+                axes3[2, 3].imshow(ratio_sag, cmap='inferno'); axes3[2, 3].set_title('ratio sagittal (clipped)'); axes3[2, 3].axis('off')
+
+                fig3.colorbar(im0, ax=axes3[2,0], fraction=0.046, pad=0.04)
+                plt.tight_layout()
+                png_band_3d = f"{save_path_prefix}_{case_id}_band{i}_comparison_3d.png"
+                fig3.savefig(png_band_3d, dpi=200)
+                plt.close(fig3)
+                print(f"Saved per-band comparison visuals for band {i}: {png_band_slice}, {png_band_3d}")
+
+            # 保存低频体的 3D MIP（已通过 low_final 变量保存了中间切片，但这里保存完整体的 MIP）
+            # low_final_full shape: [B, C, D, H, W] -> 聚合通道与 batch 后得到 [D, H, W]
+            low_final_mean = low_final_full.mean(axis=1)[0]
+            low_ax, low_cor, low_sag = (_norm_np(low_final_mean.max(axis=0)), _norm_np(low_final_mean.max(axis=1)), _norm_np(low_final_mean.max(axis=2)))
+            fig_low, axes_low = plt.subplots(1, 3, figsize=(12, 4))
+            axes_low[0].imshow(low_ax, cmap='gray'); axes_low[0].set_title('Low final - axial'); axes_low[0].axis('off')
+            axes_low[1].imshow(low_cor, cmap='gray'); axes_low[1].set_title('Low final - coronal'); axes_low[1].axis('off')
+            axes_low[2].imshow(low_sag, cmap='gray'); axes_low[2].set_title('Low final - sagittal'); axes_low[2].axis('off')
+            png_low = f"{save_path_prefix}_{case_id}_low_final_3d_mip.png"
+            fig_low.savefig(png_low, dpi=200)
+            plt.close(fig_low)
+            print(f"Saved low-frequency 3D MIP to: {png_low}")
+
+        except Exception as e:
+            print(f"Per-band visualization failed: {e}")
+
 
 def _build_argparser():
     parser = argparse.ArgumentParser(description="Visualize 3D FDConv high-frequency decomposition")
