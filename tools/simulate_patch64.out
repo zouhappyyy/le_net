@@ -1,0 +1,13 @@
+/home/fangzheng/miniconda3/envs/zl_nnunetv1/lib/python3.9/site-packages/torch/utils/cpp_extension.py:25: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging  # type: ignore[attr-defined]
+Loaded ESO_TJ_1010018171 shape (2, 128, 128, 128)
+Generating 27 patches (patch=64, stride=32)
+Processed 10 patches
+Processed 20 patches
+Saved tools/patch64_sim/patch64_sim_ESO_TJ_1010018171.json tools/patch64_sim/patch64_sim_ESO_TJ_1010018171.csv
+f0_band1 {'n_patches': 27, 'mean_ratio': 171.61701376889374, 'std_ratio': 13.257108507716271, 'sum_weighted_energy': 894609.458984375, 'sum_raw_energy': 5253.617630004883}
+f0_band2 {'n_patches': 27, 'mean_ratio': 167.93620683607537, 'std_ratio': 18.035464998344448, 'sum_weighted_energy': 396460.5693359375, 'sum_raw_energy': 2386.576416015625}
+f0_band3 {'n_patches': 27, 'mean_ratio': 166.58305987555536, 'std_ratio': 30.28795091255482, 'sum_weighted_energy': 263589.548828125, 'sum_raw_energy': 1626.5625305175781}
+f1_band1 {'n_patches': 27, 'mean_ratio': 1221.1939993488093, 'std_ratio': 28.812509728963843, 'sum_weighted_energy': 728549.927734375, 'sum_raw_energy': 596.6806869506836}
+f1_band2 {'n_patches': 27, 'mean_ratio': 2013.5365551355374, 'std_ratio': 102.85337032232394, 'sum_weighted_energy': 88852.22265625, 'sum_raw_energy': 44.21410250663757}
+f1_band3 {'n_patches': 27, 'mean_ratio': 2089.915798894655, 'std_ratio': 140.09553172541104, 'sum_weighted_energy': 40086.33752441406, 'sum_raw_energy': 19.287334322929382}

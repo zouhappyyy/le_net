@@ -1,0 +1,15 @@
+/home/fangzheng/miniconda3/envs/zl_nnunetv1/lib/python3.9/site-packages/torch/utils/cpp_extension.py:25: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging  # type: ignore[attr-defined]
+Loaded ESO_TJ_1010018171 shape (2, 128, 128, 128)
+Center crop shape (2, 64, 64, 64)
+Saved results to tools/center_crop_compare_ESO_TJ_1010018171.json
+
+Layer f0
+Band 1: full ratio=170.386, crop ratio=182.520, full E_w=270724.7, crop E_w=29097.0
+Band 2: full ratio=152.823, crop ratio=191.111, full E_w=113676.7, crop E_w=13383.8
+Band 3: full ratio=137.281, crop ratio=188.658, full E_w=67129.1, crop E_w=8281.7
+
+Layer f1
+Band 1: full ratio=1269.033, crop ratio=1205.751, full E_w=217940.4, crop E_w=26014.6
+Band 2: full ratio=1918.003, crop ratio=2047.516, full E_w=25574.0, crop E_w=3181.4
+Band 3: full ratio=2218.365, crop ratio=2200.643, full E_w=10339.7, crop E_w=1454.2

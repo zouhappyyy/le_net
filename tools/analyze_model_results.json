@@ -1,0 +1,59 @@
+{
+  "case": "ESO_TJ_60011222468",
+  "layers": [
+    {
+      "layer": "f0",
+      "bands": [
+        {
+          "layer": "f0",
+          "band": 1,
+          "raw_energy": 1814.10302734375,
+          "weighted_energy": 315441.90625,
+          "ratio": 173.8831265343716
+        },
+        {
+          "layer": "f0",
+          "band": 2,
+          "raw_energy": 1444.8416748046875,
+          "weighted_energy": 220971.03125,
+          "ratio": 152.93788593125302
+        },
+        {
+          "layer": "f0",
+          "band": 3,
+          "raw_energy": 1174.405517578125,
+          "weighted_energy": 150160.4375,
+          "ratio": 127.86080723604124
+        }
+      ],
+      "low_energy": 9118.984375
+    },
+    {
+      "layer": "f1",
+      "bands": [
+        {
+          "layer": "f1",
+          "band": 1,
+          "raw_energy": 185.40902709960938,
+          "weighted_energy": 240429.34375,
+          "ratio": 1296.7510132116176
+        },
+        {
+          "layer": "f1",
+          "band": 2,
+          "raw_energy": 23.316030502319336,
+          "weighted_energy": 44570.68359375,
+          "ratio": 1911.5896931647294
+        },
+        {
+          "layer": "f1",
+          "band": 3,
+          "raw_energy": 7.746232032775879,
+          "weighted_energy": 24371.2421875,
+          "ratio": 3146.2060630739156
+        }
+      ],
+      "low_energy": 94.85711669921875
+    }
+  ]
+}

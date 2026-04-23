@@ -1,0 +1,37 @@
+Monitor started: log=tools/train_center64_100epochs.out, final_ckpt_expected=ckpt/center64/fbm_finetuned_epoch99.pth
+Final checkpoint found: ckpt/center64/fbm_finetuned_epoch99.pth
+Running make script: /home/fangzheng/miniconda3/envs/zl_nnunetv1/bin/python3 tools/make_annotated_figs_center64.py --ckpt ckpt/center64/fbm_finetuned_epoch99.pth --data_root /home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task530_EsoTJ_30pct/nnUNetData_plans_v2.1_trgSp_1x1x1_stage0 --out_dir paper_figs_trained_center64_gpu_final --max_cases 5 --device cuda
+/home/fangzheng/miniconda3/envs/zl_nnunetv1/lib/python3.9/site-packages/torch/utils/cpp_extension.py:25: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging  # type: ignore[attr-defined]
+Saved paper_figs_trained_center64_gpu_final/final_center64_ESO_TJ_1010018171_f0_band1.png ratio=3.974 (gain=1.0)
+Saved paper_figs_trained_center64_gpu_final/final_center64_ESO_TJ_1010018171_f0_band2.png ratio=3.983 (gain=1.0)
+Saved paper_figs_trained_center64_gpu_final/final_center64_ESO_TJ_1010018171_f0_band3.png ratio=3.980 (gain=1.0)
+Saved paper_figs_trained_center64_gpu_final/final_center64_ESO_TJ_1010018171_f1_band1.png ratio=3.983 (gain=1.0)
+Saved paper_figs_trained_center64_gpu_final/final_center64_ESO_TJ_1010018171_f1_band2.png ratio=3.977 (gain=1.0)
+Saved paper_figs_trained_center64_gpu_final/final_center64_ESO_TJ_1010018171_f1_band3.png ratio=3.971 (gain=1.0)
+Saved paper_figs_trained_center64_gpu_final/final_center64_ESO_TJ_1010214968_f0_band1.png ratio=3.978 (gain=1.0)
+Saved paper_figs_trained_center64_gpu_final/final_center64_ESO_TJ_1010214968_f0_band2.png ratio=3.983 (gain=1.0)
+Saved paper_figs_trained_center64_gpu_final/final_center64_ESO_TJ_1010214968_f0_band3.png ratio=3.979 (gain=1.0)
+Saved paper_figs_trained_center64_gpu_final/final_center64_ESO_TJ_1010214968_f1_band1.png ratio=3.983 (gain=1.0)
+Saved paper_figs_trained_center64_gpu_final/final_center64_ESO_TJ_1010214968_f1_band2.png ratio=3.976 (gain=1.0)
+Saved paper_figs_trained_center64_gpu_final/final_center64_ESO_TJ_1010214968_f1_band3.png ratio=3.970 (gain=1.0)
+Saved paper_figs_trained_center64_gpu_final/final_center64_ESO_TJ_2002759833_f0_band1.png ratio=3.965 (gain=1.0)
+Saved paper_figs_trained_center64_gpu_final/final_center64_ESO_TJ_2002759833_f0_band2.png ratio=3.981 (gain=1.0)
+Saved paper_figs_trained_center64_gpu_final/final_center64_ESO_TJ_2002759833_f0_band3.png ratio=3.984 (gain=1.0)
+Saved paper_figs_trained_center64_gpu_final/final_center64_ESO_TJ_2002759833_f1_band1.png ratio=3.983 (gain=1.0)
+Saved paper_figs_trained_center64_gpu_final/final_center64_ESO_TJ_2002759833_f1_band2.png ratio=3.971 (gain=1.0)
+Saved paper_figs_trained_center64_gpu_final/final_center64_ESO_TJ_2002759833_f1_band3.png ratio=3.957 (gain=1.0)
+Saved paper_figs_trained_center64_gpu_final/final_center64_ESO_TJ_2501876128_f0_band1.png ratio=3.966 (gain=1.0)
+Saved paper_figs_trained_center64_gpu_final/final_center64_ESO_TJ_2501876128_f0_band2.png ratio=3.980 (gain=1.0)
+Saved paper_figs_trained_center64_gpu_final/final_center64_ESO_TJ_2501876128_f0_band3.png ratio=3.984 (gain=1.0)
+Saved paper_figs_trained_center64_gpu_final/final_center64_ESO_TJ_2501876128_f1_band1.png ratio=3.982 (gain=1.0)
+Saved paper_figs_trained_center64_gpu_final/final_center64_ESO_TJ_2501876128_f1_band2.png ratio=3.975 (gain=1.0)
+Saved paper_figs_trained_center64_gpu_final/final_center64_ESO_TJ_2501876128_f1_band3.png ratio=3.965 (gain=1.0)
+Saved paper_figs_trained_center64_gpu_final/final_center64_ESO_TJ_2801087499_f0_band1.png ratio=3.973 (gain=1.0)
+Saved paper_figs_trained_center64_gpu_final/final_center64_ESO_TJ_2801087499_f0_band2.png ratio=3.981 (gain=1.0)
+Saved paper_figs_trained_center64_gpu_final/final_center64_ESO_TJ_2801087499_f0_band3.png ratio=3.980 (gain=1.0)
+Saved paper_figs_trained_center64_gpu_final/final_center64_ESO_TJ_2801087499_f1_band1.png ratio=3.982 (gain=1.0)
+Saved paper_figs_trained_center64_gpu_final/final_center64_ESO_TJ_2801087499_f1_band2.png ratio=3.975 (gain=1.0)
+Saved paper_figs_trained_center64_gpu_final/final_center64_ESO_TJ_2801087499_f1_band3.png ratio=3.972 (gain=1.0)
+make_annotated_figs completed with exit code 0
+Monitor exiting

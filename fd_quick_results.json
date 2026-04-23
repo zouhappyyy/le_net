@@ -1,0 +1,29 @@
+{
+  "case": "ESO_TJ_60011222468",
+  "bands": [
+    {
+      "band": 1,
+      "raw_energy": 595495.375,
+      "weighted_energy": 595495.8125,
+      "ratio": 1.0000007346824482
+    },
+    {
+      "band": 2,
+      "raw_energy": 680764.25,
+      "weighted_energy": 680766.9375,
+      "ratio": 1.0000039477689964
+    },
+    {
+      "band": 3,
+      "raw_energy": 843687.75,
+      "weighted_energy": 843681.8125,
+      "ratio": 0.9999929624437477
+    }
+  ],
+  "low_energy": 11350496.0,
+  "radii": [
+    0.25,
+    0.125,
+    0.0625
+  ]
+}

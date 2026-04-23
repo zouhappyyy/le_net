@@ -1,0 +1,35 @@
+/home/fangzheng/miniconda3/envs/zl_nnunetv1/lib/python3.9/site-packages/torch/utils/cpp_extension.py:25: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging  # type: ignore[attr-defined]
+Loaded ESO_TJ_1010214968 shape (2, 128, 128, 128)
+Generating 27 patches (patch=64, stride=32)
+Processed 10 patches
+Processed 20 patches
+Saved tools/patch64_sim/patch64_sim_ESO_TJ_1010214968.json tools/patch64_sim/patch64_sim_ESO_TJ_1010214968.csv
+f0_band1 {'n_patches': 27, 'mean_ratio': 179.70446788558218, 'std_ratio': 16.865289300487817, 'sum_weighted_energy': 943645.326171875, 'sum_raw_energy': 5315.228820800781}
+f0_band2 {'n_patches': 27, 'mean_ratio': 174.11963623727243, 'std_ratio': 19.009739702767604, 'sum_weighted_energy': 407995.33203125, 'sum_raw_energy': 2365.046562194824}
+f0_band3 {'n_patches': 27, 'mean_ratio': 171.49231392845124, 'std_ratio': 30.37675301591589, 'sum_weighted_energy': 256251.6474609375, 'sum_raw_energy': 1546.758945465088}
+f1_band1 {'n_patches': 27, 'mean_ratio': 1270.7055106987943, 'std_ratio': 28.750915279153418, 'sum_weighted_energy': 742958.208984375, 'sum_raw_energy': 584.9605407714844}
+f1_band2 {'n_patches': 27, 'mean_ratio': 2037.1657944062042, 'std_ratio': 107.42919620434596, 'sum_weighted_energy': 81558.95532226562, 'sum_raw_energy': 40.17825508117676}
+f1_band3 {'n_patches': 27, 'mean_ratio': 2079.8879112233767, 'std_ratio': 117.16011012808923, 'sum_weighted_energy': 37593.739013671875, 'sum_raw_energy': 18.149070858955383}
+/home/fangzheng/miniconda3/envs/zl_nnunetv1/lib/python3.9/site-packages/torch/utils/cpp_extension.py:25: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging  # type: ignore[attr-defined]
+Loaded ESO_TJ_2002759833 shape (2, 128, 128, 128)
+Generating 27 patches (patch=64, stride=32)
+Processed 10 patches
+Processed 20 patches
+Saved tools/patch64_sim/patch64_sim_ESO_TJ_2002759833.json tools/patch64_sim/patch64_sim_ESO_TJ_2002759833.csv
+f0_band1 {'n_patches': 27, 'mean_ratio': 180.15683803730238, 'std_ratio': 22.12558566344514, 'sum_weighted_energy': 919852.953125, 'sum_raw_energy': 5185.918395996094}
+f0_band2 {'n_patches': 27, 'mean_ratio': 159.66462382408528, 'std_ratio': 11.395202050986533, 'sum_weighted_energy': 437153.78125, 'sum_raw_energy': 2756.1949005126953}
+f0_band3 {'n_patches': 27, 'mean_ratio': 155.1685371838066, 'std_ratio': 8.904917442689184, 'sum_weighted_energy': 290105.236328125, 'sum_raw_energy': 1881.1538848876953}
+f1_band1 {'n_patches': 27, 'mean_ratio': 1262.6123350440498, 'std_ratio': 44.18413416197483, 'sum_weighted_energy': 732055.306640625, 'sum_raw_energy': 580.5742797851562}
+f1_band2 {'n_patches': 27, 'mean_ratio': 1964.7737534478233, 'std_ratio': 130.439544075893, 'sum_weighted_energy': 91944.671875, 'sum_raw_energy': 47.12873196601868}
+f1_band3 {'n_patches': 27, 'mean_ratio': 2078.880780289327, 'std_ratio': 180.8196904633151, 'sum_weighted_energy': 39504.076416015625, 'sum_raw_energy': 19.257262349128723}
+Will process 3 cases
+Processing ESO_TJ_1010018171
+Saved maps to paper_figs_patch64/ESO_TJ_1010018171
+Processing ESO_TJ_1010214968
+Running: python3 tools/simulate_patch64_energy.py --case ESO_TJ_1010214968 --data_root "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task530_EsoTJ_30pct/nnUNetData_plans_v2.1_trgSp_1x1x1_stage0" --ckpt tools/fd_model_ckpt_learnable.pth --patch 64 --stride 32 --device cpu
+Saved maps to paper_figs_patch64/ESO_TJ_1010214968
+Processing ESO_TJ_2002759833
+Running: python3 tools/simulate_patch64_energy.py --case ESO_TJ_2002759833 --data_root "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task530_EsoTJ_30pct/nnUNetData_plans_v2.1_trgSp_1x1x1_stage0" --ckpt tools/fd_model_ckpt_learnable.pth --patch 64 --stride 32 --device cpu
+Saved maps to paper_figs_patch64/ESO_TJ_2002759833

@@ -1,0 +1,6 @@
+/home/fangzheng/miniconda3/envs/zl_nnunetv1/lib/python3.9/site-packages/torch/utils/cpp_extension.py:25: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging  # type: ignore[attr-defined]
+No CUDA runtime is found, using CUDA_HOME='/usr/local/cuda'
+Found 10 cases, analyzing 10 on cpu
+cases:   0%|          | 0/10 [00:00<?, ?it/s]cases:  10%|█         | 1/10 [00:02<00:26,  2.94s/it]cases:  20%|██        | 2/10 [00:05<00:23,  2.88s/it]cases:  30%|███       | 3/10 [00:08<00:20,  2.86s/it]cases:  40%|████      | 4/10 [00:11<00:17,  2.87s/it]cases:  50%|█████     | 5/10 [00:14<00:14,  2.85s/it]cases:  60%|██████    | 6/10 [00:17<00:11,  2.88s/it]cases:  70%|███████   | 7/10 [00:20<00:08,  2.86s/it]cases:  80%|████████  | 8/10 [00:22<00:05,  2.85s/it]cases:  90%|█████████ | 9/10 [00:25<00:02,  2.85s/it]cases: 100%|██████████| 10/10 [00:28<00:00,  2.88s/it]cases: 100%|██████████| 10/10 [00:28<00:00,  2.87s/it]
+Saved tools/batch_band_energies.csv tools/batch_band_stats.json

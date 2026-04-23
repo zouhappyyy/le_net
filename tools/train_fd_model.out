@@ -1,0 +1,32 @@
+/home/fangzheng/miniconda3/envs/zl_nnunetv1/lib/python3.9/site-packages/torch/utils/cpp_extension.py:25: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging  # type: ignore[attr-defined]
+Using /home/fangzheng/.cache/torch_extensions/py39_cu113 as PyTorch extensions root...
+Detected CUDA files, patching ldflags
+Emitting ninja build file /home/fangzheng/.cache/torch_extensions/py39_cu113/wkv/build.ninja...
+Building extension module wkv...
+Allowing ninja to set a default number of workers... (overridable by setting the environment variable MAX_JOBS=N)
+ninja: no work to do.
+Loading extension module wkv...
+Loaded vol (2, 128, 128, 128)
+Iter 0 loss 0.7004399299621582
+Iter 1 loss 0.7004260420799255
+Iter 2 loss 0.7010757923126221
+Iter 3 loss 0.700141966342926
+Iter 4 loss 0.7009004950523376
+Saved checkpoint to tools/fd_model_ckpt.pth
+START run_fd_energy_quick
+DATA_ROOT=/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task530_EsoTJ_30pct/nnUNetData_plans_v2.1_trgSp_1x1x1_stage0 CASE_ID=ESO_TJ_60011222468
+Loaded volume shape: (2, 128, 128, 128)
+Tensor on device: cuda
+Force-set learnable radii to correspond to k_list [2, 4, 8]
+FBM built; running forward
+x mean -1.3699805736541748 min -3.848586320877075 max 2.5675854682922363
+high_acc shape: torch.Size([1, 1, 128, 128, 128])
+
+Per-band energies:
+Band 1: raw_energy=5.954954e+05, weighted_energy=5.954958e+05, ratio=1.0000
+Band 2: raw_energy=6.807642e+05, weighted_energy=6.807669e+05, ratio=1.0000
+Band 3: raw_energy=8.436878e+05, weighted_energy=8.436818e+05, ratio=1.0000
+Low energy: 1.135050e+07
+Learnable radii: [0.25, 0.125, 0.0625]
+Saved results to fd_quick_results.json

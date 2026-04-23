@@ -1,0 +1,64 @@
+START run_fd_energy_quick
+DATA_ROOT=/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task530_EsoTJ_30pct/nnUNetData_plans_v2.1_trgSp_1x1x1_stage0 CASE_ID=ESO_TJ_60011222468
+Loaded volume shape: (2, 128, 128, 128)
+Tensor on device: cuda
+Force-set learnable radii to correspond to k_list [2, 4, 8]
+FBM built; running forward
+x mean -1.3699805736541748 min -3.848586320877075 max 2.5675854682922363
+high_acc shape: torch.Size([1, 1, 128, 128, 128])
+Unhandled exception: RuntimeError("Can't call numpy() on Tensor that requires grad. Use tensor.detach().numpy() instead.")
+Traceback (most recent call last):
+  File "/home/fangzheng/zoule/mednext/tools/run_fd_energy_quick.py", line 140, in <module>
+    compute()
+  File "/home/fangzheng/zoule/mednext/tools/run_fd_energy_quick.py", line 98, in compute
+    per_weight.append(tmp.cpu().numpy())
+RuntimeError: Can't call numpy() on Tensor that requires grad. Use tensor.detach().numpy() instead.
+
+START run_fd_energy_quick
+DATA_ROOT=/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task530_EsoTJ_30pct/nnUNetData_plans_v2.1_trgSp_1x1x1_stage0 CASE_ID=ESO_TJ_60011222468
+Loaded volume shape: (2, 128, 128, 128)
+Tensor on device: cuda
+Force-set learnable radii to correspond to k_list [2, 4, 8]
+FBM built; running forward
+x mean -1.3699805736541748 min -3.848586320877075 max 2.5675854682922363
+high_acc shape: torch.Size([1, 1, 128, 128, 128])
+Unhandled exception: RuntimeError("Can't call numpy() on Tensor that requires grad. Use tensor.detach().numpy() instead.")
+Traceback (most recent call last):
+  File "/home/fangzheng/zoule/mednext/tools/run_fd_energy_quick.py", line 140, in <module>
+    compute()
+  File "/home/fangzheng/zoule/mednext/tools/run_fd_energy_quick.py", line 98, in compute
+    per_weight.append(tmp.cpu().numpy())
+RuntimeError: Can't call numpy() on Tensor that requires grad. Use tensor.detach().numpy() instead.
+
+START run_fd_energy_quick
+DATA_ROOT=/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task530_EsoTJ_30pct/nnUNetData_plans_v2.1_trgSp_1x1x1_stage0 CASE_ID=ESO_TJ_60011222468
+Loaded volume shape: (2, 128, 128, 128)
+Tensor on device: cuda
+Force-set learnable radii to correspond to k_list [2, 4, 8]
+FBM built; running forward
+x mean -1.3699805736541748 min -3.848586320877075 max 2.5675854682922363
+high_acc shape: torch.Size([1, 1, 128, 128, 128])
+
+Per-band energies:
+Band 1: raw_energy=5.954954e+05, weighted_energy=5.954933e+05, ratio=1.0000
+Band 2: raw_energy=6.807642e+05, weighted_energy=6.807641e+05, ratio=1.0000
+Band 3: raw_energy=8.436878e+05, weighted_energy=8.436777e+05, ratio=1.0000
+Low energy: 1.135050e+07
+Learnable radii: [0.25, 0.125, 0.0625]
+Saved results to fd_quick_results.json
+START run_fd_energy_quick
+DATA_ROOT=/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task530_EsoTJ_30pct/nnUNetData_plans_v2.1_trgSp_1x1x1_stage0 CASE_ID=ESO_TJ_60011222468
+Loaded volume shape: (2, 128, 128, 128)
+Tensor on device: cuda
+Force-set learnable radii to correspond to k_list [2, 4, 8]
+FBM built; running forward
+x mean -1.3699805736541748 min -3.848586320877075 max 2.5675854682922363
+high_acc shape: torch.Size([1, 1, 128, 128, 128])
+
+Per-band energies:
+Band 1: raw_energy=5.954954e+05, weighted_energy=5.954958e+05, ratio=1.0000
+Band 2: raw_energy=6.807642e+05, weighted_energy=6.807669e+05, ratio=1.0000
+Band 3: raw_energy=8.436878e+05, weighted_energy=8.436818e+05, ratio=1.0000
+Low energy: 1.135050e+07
+Learnable radii: [0.25, 0.125, 0.0625]
+Saved results to fd_quick_results.json

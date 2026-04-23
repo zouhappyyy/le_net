@@ -1,0 +1,32 @@
+/home/fangzheng/miniconda3/envs/zl_nnunetv1/lib/python3.9/site-packages/torch/utils/cpp_extension.py:25: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging  # type: ignore[attr-defined]
+Using /home/fangzheng/.cache/torch_extensions/py39_cu113 as PyTorch extensions root...
+Detected CUDA files, patching ldflags
+Emitting ninja build file /home/fangzheng/.cache/torch_extensions/py39_cu113/wkv/build.ninja...
+Building extension module wkv...
+Allowing ninja to set a default number of workers... (overridable by setting the environment variable MAX_JOBS=N)
+ninja: no work to do.
+Loading extension module wkv...
+Loaded vol (2, 128, 128, 128)
+Traceback (most recent call last):
+  File "/home/fangzheng/zoule/mednext/tools/train_fd_model.py", line 68, in <module>
+    main()
+  File "/home/fangzheng/zoule/mednext/tools/train_fd_model.py", line 53, in main
+    out = model(x)
+  File "/home/fangzheng/miniconda3/envs/zl_nnunetv1/lib/python3.9/site-packages/torch/nn/modules/module.py", line 1130, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/home/fangzheng/zoule/mednext/nnunet_mednext/network_architecture/le_networks/Double_RWKV_MedNeXt.py", line 420, in forward
+    f0, f1, f2, f3, f4 = self.encoder(x)
+  File "/home/fangzheng/miniconda3/envs/zl_nnunetv1/lib/python3.9/site-packages/torch/nn/modules/module.py", line 1130, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/home/fangzheng/zoule/mednext/nnunet_mednext/network_architecture/le_networks/Double_RWKV_MedNeXt.py", line 175, in forward
+    feats_med = self.mednext_enc.forward_encoder(x)
+  File "/home/fangzheng/zoule/mednext/nnunet_mednext/network_architecture/le_networks/Double_RWKV_MedNeXt.py", line 69, in forward_encoder
+    x = self.stem(x)
+  File "/home/fangzheng/miniconda3/envs/zl_nnunetv1/lib/python3.9/site-packages/torch/nn/modules/module.py", line 1130, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/home/fangzheng/miniconda3/envs/zl_nnunetv1/lib/python3.9/site-packages/torch/nn/modules/conv.py", line 607, in forward
+    return self._conv_forward(input, self.weight, self.bias)
+  File "/home/fangzheng/miniconda3/envs/zl_nnunetv1/lib/python3.9/site-packages/torch/nn/modules/conv.py", line 602, in _conv_forward
+    return F.conv3d(
+RuntimeError: Given groups=1, weight of size [16, 1, 1, 1, 1], expected input[1, 2, 32, 64, 64] to have 1 channels, but got 2 channels instead

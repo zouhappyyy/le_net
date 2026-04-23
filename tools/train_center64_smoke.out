@@ -1,0 +1,5 @@
+/home/fangzheng/miniconda3/envs/zl_nnunetv1/lib/python3.9/site-packages/torch/utils/cpp_extension.py:25: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging  # type: ignore[attr-defined]
+Loaded init checkpoint tools/fd_model_ckpt_learnable.pth
+Epoch 0 done (0.5s). Saved ckpt/center64/fbm_finetuned_epoch0.pth
+Training finished. Final checkpoint in ckpt/center64

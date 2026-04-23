@@ -1,0 +1,20 @@
+/home/fangzheng/miniconda3/envs/zl_nnunetv1/lib/python3.9/site-packages/torch/utils/cpp_extension.py:25: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging  # type: ignore[attr-defined]
+Loaded init checkpoint tools/fd_model_ckpt_learnable.pth
+Epoch 0 Step 4 Loss -306074.000000 global_step 5
+Epoch 0 Step 9 Loss -311999.625000 global_step 10
+Epoch 0 Step 14 Loss -313434.812500 global_step 15
+Epoch 0 Step 19 Loss -326430.843750 global_step 20
+Epoch 0 Step 24 Loss -324479.187500 global_step 25
+Epoch 0 Step 29 Loss -328712.687500 global_step 30
+Epoch 0 Step 34 Loss -339590.218750 global_step 35
+Epoch 0 done (2.2s). Saved ckpt/center64/fbm_finetuned_epoch0.pth
+Epoch 1 Step 4 Loss -336466.718750 global_step 40
+Epoch 1 Step 9 Loss -346615.343750 global_step 45
+Epoch 1 Step 14 Loss -391037.625000 global_step 50
+Epoch 1 Step 19 Loss -370032.781250 global_step 55
+Epoch 1 Step 24 Loss -364862.062500 global_step 60
+Epoch 1 Step 29 Loss -367249.406250 global_step 65
+Epoch 1 Step 34 Loss -373495.906250 global_step 70
+Epoch 1 done (0.5s). Saved ckpt/center64/fbm_finetuned_epoch1.pth
+Training finished. Final checkpoint in ckpt/center64

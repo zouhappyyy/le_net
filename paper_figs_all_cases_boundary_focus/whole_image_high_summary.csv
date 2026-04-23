@@ -1,0 +1,8 @@
+metric,value
+mean_input_high_ratio,0.3066323697566986
+mean_output_high_ratio,0.3215784728527069
+mean_high_ratio_delta,0.01494603417813778
+frac_output_gt_input,0.6666666666666666
+mean_input_boundary_energy_ratio,0.7710222601890564
+mean_output_boundary_energy_ratio,0.8062257766723633
+mean_boundary_energy_delta,0.0352034866809845

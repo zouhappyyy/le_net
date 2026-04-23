@@ -1,0 +1,15 @@
+/home/fangzheng/miniconda3/envs/zl_nnunetv1/lib/python3.9/site-packages/torch/utils/cpp_extension.py:25: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging  # type: ignore[attr-defined]
+Using /home/fangzheng/.cache/torch_extensions/py39_cu113 as PyTorch extensions root...
+Detected CUDA files, patching ldflags
+Emitting ninja build file /home/fangzheng/.cache/torch_extensions/py39_cu113/wkv/build.ninja...
+Building extension module wkv...
+Allowing ninja to set a default number of workers... (overridable by setting the environment variable MAX_JOBS=N)
+ninja: no work to do.
+Loading extension module wkv...
+Loaded vol (2, 128, 128, 128)
+Loading checkpoint tools/fd_model_ckpt_learnable.pth
+State dict load completed (missing/unexpected): _IncompatibleKeys(missing_keys=[], unexpected_keys=['encoder.fbm0.band_radius_logits', 'encoder.fbm1.band_radius_logits'])
+Analyzing fbm0 on f0
+Analyzing fbm1 on f1
+Saved results to tools/analyze_model_results.json tools/analyze_model_band_energy.csv

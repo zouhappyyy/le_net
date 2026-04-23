@@ -1,0 +1,804 @@
+/home/fangzheng/miniconda3/envs/zl_nnunetv1/lib/python3.9/site-packages/torch/utils/cpp_extension.py:25: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging  # type: ignore[attr-defined]
+Loaded init checkpoint tools/fd_model_ckpt_learnable.pth
+Epoch 0 Step 4 Loss -308396.093750 global_step 5
+Epoch 0 Step 9 Loss -309695.062500 global_step 10
+Epoch 0 Step 14 Loss -315830.312500 global_step 15
+Epoch 0 Step 19 Loss -321001.468750 global_step 20
+Epoch 0 Step 24 Loss -324600.656250 global_step 25
+Epoch 0 Step 29 Loss -325040.468750 global_step 30
+Epoch 0 Step 34 Loss -350571.093750 global_step 35
+Epoch 0 done (2.0s). Saved ckpt/center64/fbm_finetuned_epoch0.pth
+Epoch 1 Step 4 Loss -350190.812500 global_step 40
+Epoch 1 Step 9 Loss -351523.468750 global_step 45
+Epoch 1 Step 14 Loss -357753.531250 global_step 50
+Epoch 1 Step 19 Loss -358535.000000 global_step 55
+Epoch 1 Step 24 Loss -365620.437500 global_step 60
+Epoch 1 Step 29 Loss -376079.218750 global_step 65
+Epoch 1 Step 34 Loss -374177.156250 global_step 70
+Epoch 1 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch1.pth
+Epoch 2 Step 4 Loss -393123.750000 global_step 75
+Epoch 2 Step 9 Loss -399846.812500 global_step 80
+Epoch 2 Step 14 Loss -393678.312500 global_step 85
+Epoch 2 Step 19 Loss -395791.218750 global_step 90
+Epoch 2 Step 24 Loss -411067.687500 global_step 95
+Epoch 2 Step 29 Loss -408663.062500 global_step 100
+Epoch 2 Step 34 Loss -424859.718750 global_step 105
+Epoch 2 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch2.pth
+Epoch 3 Step 4 Loss -481918.875000 global_step 110
+Epoch 3 Step 9 Loss -430670.156250 global_step 115
+Epoch 3 Step 14 Loss -425275.062500 global_step 120
+Epoch 3 Step 19 Loss -431434.093750 global_step 125
+Epoch 3 Step 24 Loss -448895.437500 global_step 130
+Epoch 3 Step 29 Loss -459001.281250 global_step 135
+Epoch 3 Step 34 Loss -463938.500000 global_step 140
+Epoch 3 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch3.pth
+Epoch 4 Step 4 Loss -454075.375000 global_step 145
+Epoch 4 Step 9 Loss -464793.937500 global_step 150
+Epoch 4 Step 14 Loss -469420.125000 global_step 155
+Epoch 4 Step 19 Loss -468589.968750 global_step 160
+Epoch 4 Step 24 Loss -479636.687500 global_step 165
+Epoch 4 Step 29 Loss -492988.250000 global_step 170
+Epoch 4 Step 34 Loss -486397.156250 global_step 175
+Epoch 4 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch4.pth
+Epoch 5 Step 4 Loss -493391.093750 global_step 180
+Epoch 5 Step 9 Loss -510439.218750 global_step 185
+Epoch 5 Step 14 Loss -532604.625000 global_step 190
+Epoch 5 Step 19 Loss -504489.406250 global_step 195
+Epoch 5 Step 24 Loss -518867.718750 global_step 200
+Epoch 5 Step 29 Loss -515710.625000 global_step 205
+Epoch 5 Step 34 Loss -525152.125000 global_step 210
+Epoch 5 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch5.pth
+Epoch 6 Step 4 Loss -563670.750000 global_step 215
+Epoch 6 Step 9 Loss -540054.062500 global_step 220
+Epoch 6 Step 14 Loss -529698.812500 global_step 225
+Epoch 6 Step 19 Loss -540554.875000 global_step 230
+Epoch 6 Step 24 Loss -547793.937500 global_step 235
+Epoch 6 Step 29 Loss -545452.812500 global_step 240
+Epoch 6 Step 34 Loss -574120.062500 global_step 245
+Epoch 6 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch6.pth
+Epoch 7 Step 4 Loss -541395.562500 global_step 250
+Epoch 7 Step 9 Loss -553775.250000 global_step 255
+Epoch 7 Step 14 Loss -563015.500000 global_step 260
+Epoch 7 Step 19 Loss -558569.000000 global_step 265
+Epoch 7 Step 24 Loss -559423.500000 global_step 270
+Epoch 7 Step 29 Loss -633615.000000 global_step 275
+Epoch 7 Step 34 Loss -559422.375000 global_step 280
+Epoch 7 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch7.pth
+Epoch 8 Step 4 Loss -549485.125000 global_step 285
+Epoch 8 Step 9 Loss -573018.375000 global_step 290
+Epoch 8 Step 14 Loss -587400.312500 global_step 295
+Epoch 8 Step 19 Loss -586822.812500 global_step 300
+Epoch 8 Step 24 Loss -568879.625000 global_step 305
+Epoch 8 Step 29 Loss -583997.750000 global_step 310
+Epoch 8 Step 34 Loss -576870.812500 global_step 315
+Epoch 8 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch8.pth
+Epoch 9 Step 4 Loss -578483.125000 global_step 320
+Epoch 9 Step 9 Loss -658668.875000 global_step 325
+Epoch 9 Step 14 Loss -660348.125000 global_step 330
+Epoch 9 Step 19 Loss -602085.625000 global_step 335
+Epoch 9 Step 24 Loss -592893.375000 global_step 340
+Epoch 9 Step 29 Loss -611015.000000 global_step 345
+Epoch 9 Step 34 Loss -605741.625000 global_step 350
+Epoch 9 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch9.pth
+Epoch 10 Step 4 Loss -591904.062500 global_step 355
+Epoch 10 Step 9 Loss -601196.750000 global_step 360
+Epoch 10 Step 14 Loss -615309.312500 global_step 365
+Epoch 10 Step 19 Loss -608710.812500 global_step 370
+Epoch 10 Step 24 Loss -642934.125000 global_step 375
+Epoch 10 Step 29 Loss -612990.062500 global_step 380
+Epoch 10 Step 34 Loss -602734.125000 global_step 385
+Epoch 10 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch10.pth
+Epoch 11 Step 4 Loss -602323.625000 global_step 390
+Epoch 11 Step 9 Loss -685903.625000 global_step 395
+Epoch 11 Step 14 Loss -607980.687500 global_step 400
+Epoch 11 Step 19 Loss -687045.000000 global_step 405
+Epoch 11 Step 24 Loss -631014.125000 global_step 410
+Epoch 11 Step 29 Loss -622907.625000 global_step 415
+Epoch 11 Step 34 Loss -616481.250000 global_step 420
+Epoch 11 done (0.5s). Saved ckpt/center64/fbm_finetuned_epoch11.pth
+Epoch 12 Step 4 Loss -617634.312500 global_step 425
+Epoch 12 Step 9 Loss -625478.000000 global_step 430
+Epoch 12 Step 14 Loss -638590.625000 global_step 435
+Epoch 12 Step 19 Loss -661594.250000 global_step 440
+Epoch 12 Step 24 Loss -633130.875000 global_step 445
+Epoch 12 Step 29 Loss -623324.625000 global_step 450
+Epoch 12 Step 34 Loss -700580.812500 global_step 455
+Epoch 12 done (0.5s). Saved ckpt/center64/fbm_finetuned_epoch12.pth
+Epoch 13 Step 4 Loss -638073.187500 global_step 460
+Epoch 13 Step 9 Loss -629278.875000 global_step 465
+Epoch 13 Step 14 Loss -639046.500000 global_step 470
+Epoch 13 Step 19 Loss -669807.000000 global_step 475
+Epoch 13 Step 24 Loss -638192.187500 global_step 480
+Epoch 13 Step 29 Loss -647142.437500 global_step 485
+Epoch 13 Step 34 Loss -628235.500000 global_step 490
+Epoch 13 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch13.pth
+Epoch 14 Step 4 Loss -619996.187500 global_step 495
+Epoch 14 Step 9 Loss -651988.062500 global_step 500
+Epoch 14 Step 14 Loss -648675.625000 global_step 505
+Epoch 14 Step 19 Loss -675655.875000 global_step 510
+Epoch 14 Step 24 Loss -663700.625000 global_step 515
+Epoch 14 Step 29 Loss -655553.562500 global_step 520
+Epoch 14 Step 34 Loss -653330.625000 global_step 525
+Epoch 14 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch14.pth
+Epoch 15 Step 4 Loss -653874.000000 global_step 530
+Epoch 15 Step 9 Loss -651890.187500 global_step 535
+Epoch 15 Step 14 Loss -644228.000000 global_step 540
+Epoch 15 Step 19 Loss -648061.812500 global_step 545
+Epoch 15 Step 24 Loss -684336.250000 global_step 550
+Epoch 15 Step 29 Loss -645872.375000 global_step 555
+Epoch 15 Step 34 Loss -665393.875000 global_step 560
+Epoch 15 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch15.pth
+Epoch 16 Step 4 Loss -663677.500000 global_step 565
+Epoch 16 Step 9 Loss -666462.437500 global_step 570
+Epoch 16 Step 14 Loss -660513.750000 global_step 575
+Epoch 16 Step 19 Loss -730945.125000 global_step 580
+Epoch 16 Step 24 Loss -670132.500000 global_step 585
+Epoch 16 Step 29 Loss -680733.750000 global_step 590
+Epoch 16 Step 34 Loss -666073.687500 global_step 595
+Epoch 16 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch16.pth
+Epoch 17 Step 4 Loss -662518.625000 global_step 600
+Epoch 17 Step 9 Loss -654634.687500 global_step 605
+Epoch 17 Step 14 Loss -672559.750000 global_step 610
+Epoch 17 Step 19 Loss -694425.750000 global_step 615
+Epoch 17 Step 24 Loss -667561.750000 global_step 620
+Epoch 17 Step 29 Loss -672164.750000 global_step 625
+Epoch 17 Step 34 Loss -685379.187500 global_step 630
+Epoch 17 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch17.pth
+Epoch 18 Step 4 Loss -661994.812500 global_step 635
+Epoch 18 Step 9 Loss -676985.687500 global_step 640
+Epoch 18 Step 14 Loss -706884.187500 global_step 645
+Epoch 18 Step 19 Loss -667491.875000 global_step 650
+Epoch 18 Step 24 Loss -662248.625000 global_step 655
+Epoch 18 Step 29 Loss -684346.625000 global_step 660
+Epoch 18 Step 34 Loss -679530.375000 global_step 665
+Epoch 18 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch18.pth
+Epoch 19 Step 4 Loss -667889.750000 global_step 670
+Epoch 19 Step 9 Loss -683234.750000 global_step 675
+Epoch 19 Step 14 Loss -666480.437500 global_step 680
+Epoch 19 Step 19 Loss -679501.625000 global_step 685
+Epoch 19 Step 24 Loss -669913.625000 global_step 690
+Epoch 19 Step 29 Loss -688508.250000 global_step 695
+Epoch 19 Step 34 Loss -677217.875000 global_step 700
+Epoch 19 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch19.pth
+Epoch 20 Step 4 Loss -675960.125000 global_step 705
+Epoch 20 Step 9 Loss -687878.750000 global_step 710
+Epoch 20 Step 14 Loss -673281.125000 global_step 715
+Epoch 20 Step 19 Loss -656300.625000 global_step 720
+Epoch 20 Step 24 Loss -688848.375000 global_step 725
+Epoch 20 Step 29 Loss -694593.812500 global_step 730
+Epoch 20 Step 34 Loss -709087.375000 global_step 735
+Epoch 20 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch20.pth
+Epoch 21 Step 4 Loss -684320.750000 global_step 740
+Epoch 21 Step 9 Loss -754698.250000 global_step 745
+Epoch 21 Step 14 Loss -676580.125000 global_step 750
+Epoch 21 Step 19 Loss -688959.000000 global_step 755
+Epoch 21 Step 24 Loss -687960.375000 global_step 760
+Epoch 21 Step 29 Loss -715082.875000 global_step 765
+Epoch 21 Step 34 Loss -661889.937500 global_step 770
+Epoch 21 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch21.pth
+Epoch 22 Step 4 Loss -716173.000000 global_step 775
+Epoch 22 Step 9 Loss -758664.000000 global_step 780
+Epoch 22 Step 14 Loss -682517.312500 global_step 785
+Epoch 22 Step 19 Loss -687708.937500 global_step 790
+Epoch 22 Step 24 Loss -751941.125000 global_step 795
+Epoch 22 Step 29 Loss -681931.562500 global_step 800
+Epoch 22 Step 34 Loss -702968.000000 global_step 805
+Epoch 22 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch22.pth
+Epoch 23 Step 4 Loss -687071.625000 global_step 810
+Epoch 23 Step 9 Loss -682485.937500 global_step 815
+Epoch 23 Step 14 Loss -690766.625000 global_step 820
+Epoch 23 Step 19 Loss -697483.625000 global_step 825
+Epoch 23 Step 24 Loss -695849.812500 global_step 830
+Epoch 23 Step 29 Loss -718666.625000 global_step 835
+Epoch 23 Step 34 Loss -711377.625000 global_step 840
+Epoch 23 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch23.pth
+Epoch 24 Step 4 Loss -723220.250000 global_step 845
+Epoch 24 Step 9 Loss -692641.187500 global_step 850
+Epoch 24 Step 14 Loss -720377.562500 global_step 855
+Epoch 24 Step 19 Loss -704051.625000 global_step 860
+Epoch 24 Step 24 Loss -707364.625000 global_step 865
+Epoch 24 Step 29 Loss -697145.187500 global_step 870
+Epoch 24 Step 34 Loss -704440.687500 global_step 875
+Epoch 24 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch24.pth
+Epoch 25 Step 4 Loss -734272.875000 global_step 880
+Epoch 25 Step 9 Loss -690439.250000 global_step 885
+Epoch 25 Step 14 Loss -723243.125000 global_step 890
+Epoch 25 Step 19 Loss -709528.750000 global_step 895
+Epoch 25 Step 24 Loss -695495.562500 global_step 900
+Epoch 25 Step 29 Loss -703899.250000 global_step 905
+Epoch 25 Step 34 Loss -771205.500000 global_step 910
+Epoch 25 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch25.pth
+Epoch 26 Step 4 Loss -718194.750000 global_step 915
+Epoch 26 Step 9 Loss -694355.500000 global_step 920
+Epoch 26 Step 14 Loss -721002.375000 global_step 925
+Epoch 26 Step 19 Loss -772900.250000 global_step 930
+Epoch 26 Step 24 Loss -763807.562500 global_step 935
+Epoch 26 Step 29 Loss -694378.500000 global_step 940
+Epoch 26 Step 34 Loss -708496.750000 global_step 945
+Epoch 26 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch26.pth
+Epoch 27 Step 4 Loss -707615.000000 global_step 950
+Epoch 27 Step 9 Loss -694145.375000 global_step 955
+Epoch 27 Step 14 Loss -696496.125000 global_step 960
+Epoch 27 Step 19 Loss -709827.625000 global_step 965
+Epoch 27 Step 24 Loss -712253.187500 global_step 970
+Epoch 27 Step 29 Loss -724975.250000 global_step 975
+Epoch 27 Step 34 Loss -716570.625000 global_step 980
+Epoch 27 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch27.pth
+Epoch 28 Step 4 Loss -734925.812500 global_step 985
+Epoch 28 Step 9 Loss -707865.437500 global_step 990
+Epoch 28 Step 14 Loss -692381.125000 global_step 995
+Epoch 28 Step 19 Loss -744187.312500 global_step 1000
+Epoch 28 Step 24 Loss -701013.000000 global_step 1005
+Epoch 28 Step 29 Loss -700146.812500 global_step 1010
+Epoch 28 Step 34 Loss -710275.625000 global_step 1015
+Epoch 28 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch28.pth
+Epoch 29 Step 4 Loss -711396.312500 global_step 1020
+Epoch 29 Step 9 Loss -746039.375000 global_step 1025
+Epoch 29 Step 14 Loss -738174.312500 global_step 1030
+Epoch 29 Step 19 Loss -699891.562500 global_step 1035
+Epoch 29 Step 24 Loss -727804.125000 global_step 1040
+Epoch 29 Step 29 Loss -701988.125000 global_step 1045
+Epoch 29 Step 34 Loss -714961.125000 global_step 1050
+Epoch 29 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch29.pth
+Epoch 30 Step 4 Loss -701232.125000 global_step 1055
+Epoch 30 Step 9 Loss -719444.500000 global_step 1060
+Epoch 30 Step 14 Loss -724179.062500 global_step 1065
+Epoch 30 Step 19 Loss -704198.687500 global_step 1070
+Epoch 30 Step 24 Loss -717818.000000 global_step 1075
+Epoch 30 Step 29 Loss -704895.875000 global_step 1080
+Epoch 30 Step 34 Loss -717291.000000 global_step 1085
+Epoch 30 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch30.pth
+Epoch 31 Step 4 Loss -698838.312500 global_step 1090
+Epoch 31 Step 9 Loss -707731.937500 global_step 1095
+Epoch 31 Step 14 Loss -705308.375000 global_step 1100
+Epoch 31 Step 19 Loss -725395.937500 global_step 1105
+Epoch 31 Step 24 Loss -719986.500000 global_step 1110
+Epoch 31 Step 29 Loss -715322.000000 global_step 1115
+Epoch 31 Step 34 Loss -734947.687500 global_step 1120
+Epoch 31 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch31.pth
+Epoch 32 Step 4 Loss -722803.562500 global_step 1125
+Epoch 32 Step 9 Loss -787380.812500 global_step 1130
+Epoch 32 Step 14 Loss -715004.000000 global_step 1135
+Epoch 32 Step 19 Loss -716857.562500 global_step 1140
+Epoch 32 Step 24 Loss -736472.500000 global_step 1145
+Epoch 32 Step 29 Loss -745949.937500 global_step 1150
+Epoch 32 Step 34 Loss -716060.312500 global_step 1155
+Epoch 32 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch32.pth
+Epoch 33 Step 4 Loss -778471.750000 global_step 1160
+Epoch 33 Step 9 Loss -725193.250000 global_step 1165
+Epoch 33 Step 14 Loss -709605.500000 global_step 1170
+Epoch 33 Step 19 Loss -710025.062500 global_step 1175
+Epoch 33 Step 24 Loss -715177.312500 global_step 1180
+Epoch 33 Step 29 Loss -721813.500000 global_step 1185
+Epoch 33 Step 34 Loss -791065.812500 global_step 1190
+Epoch 33 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch33.pth
+Epoch 34 Step 4 Loss -743134.625000 global_step 1195
+Epoch 34 Step 9 Loss -711985.750000 global_step 1200
+Epoch 34 Step 14 Loss -728639.875000 global_step 1205
+Epoch 34 Step 19 Loss -711911.750000 global_step 1210
+Epoch 34 Step 24 Loss -710817.562500 global_step 1215
+Epoch 34 Step 29 Loss -733066.687500 global_step 1220
+Epoch 34 Step 34 Loss -713381.562500 global_step 1225
+Epoch 34 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch34.pth
+Epoch 35 Step 4 Loss -782329.375000 global_step 1230
+Epoch 35 Step 9 Loss -727128.500000 global_step 1235
+Epoch 35 Step 14 Loss -734188.875000 global_step 1240
+Epoch 35 Step 19 Loss -733725.187500 global_step 1245
+Epoch 35 Step 24 Loss -740670.125000 global_step 1250
+Epoch 35 Step 29 Loss -714416.562500 global_step 1255
+Epoch 35 Step 34 Loss -722137.125000 global_step 1260
+Epoch 35 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch35.pth
+Epoch 36 Step 4 Loss -735824.812500 global_step 1265
+Epoch 36 Step 9 Loss -715194.125000 global_step 1270
+Epoch 36 Step 14 Loss -747361.937500 global_step 1275
+Epoch 36 Step 19 Loss -726333.562500 global_step 1280
+Epoch 36 Step 24 Loss -725018.187500 global_step 1285
+Epoch 36 Step 29 Loss -718782.500000 global_step 1290
+Epoch 36 Step 34 Loss -796999.125000 global_step 1295
+Epoch 36 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch36.pth
+Epoch 37 Step 4 Loss -719291.125000 global_step 1300
+Epoch 37 Step 9 Loss -714801.875000 global_step 1305
+Epoch 37 Step 14 Loss -724749.687500 global_step 1310
+Epoch 37 Step 19 Loss -700325.812500 global_step 1315
+Epoch 37 Step 24 Loss -728397.375000 global_step 1320
+Epoch 37 Step 29 Loss -744582.125000 global_step 1325
+Epoch 37 Step 34 Loss -731086.875000 global_step 1330
+Epoch 37 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch37.pth
+Epoch 38 Step 4 Loss -732530.437500 global_step 1335
+Epoch 38 Step 9 Loss -723778.500000 global_step 1340
+Epoch 38 Step 14 Loss -799628.812500 global_step 1345
+Epoch 38 Step 19 Loss -717741.562500 global_step 1350
+Epoch 38 Step 24 Loss -746077.250000 global_step 1355
+Epoch 38 Step 29 Loss -719768.687500 global_step 1360
+Epoch 38 Step 34 Loss -740724.437500 global_step 1365
+Epoch 38 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch38.pth
+Epoch 39 Step 4 Loss -718696.250000 global_step 1370
+Epoch 39 Step 9 Loss -734549.312500 global_step 1375
+Epoch 39 Step 14 Loss -736460.750000 global_step 1380
+Epoch 39 Step 19 Loss -714899.375000 global_step 1385
+Epoch 39 Step 24 Loss -790307.312500 global_step 1390
+Epoch 39 Step 29 Loss -802149.187500 global_step 1395
+Epoch 39 Step 34 Loss -724122.812500 global_step 1400
+Epoch 39 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch39.pth
+Epoch 40 Step 4 Loss -768419.125000 global_step 1405
+Epoch 40 Step 9 Loss -735853.625000 global_step 1410
+Epoch 40 Step 14 Loss -724626.812500 global_step 1415
+Epoch 40 Step 19 Loss -739602.000000 global_step 1420
+Epoch 40 Step 24 Loss -730330.000000 global_step 1425
+Epoch 40 Step 29 Loss -744067.250000 global_step 1430
+Epoch 40 Step 34 Loss -721698.250000 global_step 1435
+Epoch 40 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch40.pth
+Epoch 41 Step 4 Loss -717437.687500 global_step 1440
+Epoch 41 Step 9 Loss -721457.125000 global_step 1445
+Epoch 41 Step 14 Loss -745018.875000 global_step 1450
+Epoch 41 Step 19 Loss -734891.062500 global_step 1455
+Epoch 41 Step 24 Loss -740125.750000 global_step 1460
+Epoch 41 Step 29 Loss -725023.562500 global_step 1465
+Epoch 41 Step 34 Loss -745708.125000 global_step 1470
+Epoch 41 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch41.pth
+Epoch 42 Step 4 Loss -735362.125000 global_step 1475
+Epoch 42 Step 9 Loss -725681.000000 global_step 1480
+Epoch 42 Step 14 Loss -753770.687500 global_step 1485
+Epoch 42 Step 19 Loss -708469.250000 global_step 1490
+Epoch 42 Step 24 Loss -739640.750000 global_step 1495
+Epoch 42 Step 29 Loss -728460.375000 global_step 1500
+Epoch 42 Step 34 Loss -724773.250000 global_step 1505
+Epoch 42 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch42.pth
+Epoch 43 Step 4 Loss -740284.062500 global_step 1510
+Epoch 43 Step 9 Loss -795921.562500 global_step 1515
+Epoch 43 Step 14 Loss -727091.125000 global_step 1520
+Epoch 43 Step 19 Loss -747865.812500 global_step 1525
+Epoch 43 Step 24 Loss -735015.500000 global_step 1530
+Epoch 43 Step 29 Loss -732755.687500 global_step 1535
+Epoch 43 Step 34 Loss -735489.687500 global_step 1540
+Epoch 43 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch43.pth
+Epoch 44 Step 4 Loss -733181.125000 global_step 1545
+Epoch 44 Step 9 Loss -797411.375000 global_step 1550
+Epoch 44 Step 14 Loss -726214.750000 global_step 1555
+Epoch 44 Step 19 Loss -809830.062500 global_step 1560
+Epoch 44 Step 24 Loss -748990.500000 global_step 1565
+Epoch 44 Step 29 Loss -729547.500000 global_step 1570
+Epoch 44 Step 34 Loss -729154.250000 global_step 1575
+Epoch 44 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch44.pth
+Epoch 45 Step 4 Loss -740364.625000 global_step 1580
+Epoch 45 Step 9 Loss -745443.875000 global_step 1585
+Epoch 45 Step 14 Loss -746722.375000 global_step 1590
+Epoch 45 Step 19 Loss -747218.750000 global_step 1595
+Epoch 45 Step 24 Loss -740699.500000 global_step 1600
+Epoch 45 Step 29 Loss -750652.125000 global_step 1605
+Epoch 45 Step 34 Loss -730572.312500 global_step 1610
+Epoch 45 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch45.pth
+Epoch 46 Step 4 Loss -812215.125000 global_step 1615
+Epoch 46 Step 9 Loss -731257.375000 global_step 1620
+Epoch 46 Step 14 Loss -740642.437500 global_step 1625
+Epoch 46 Step 19 Loss -778589.937500 global_step 1630
+Epoch 46 Step 24 Loss -736897.375000 global_step 1635
+Epoch 46 Step 29 Loss -732377.562500 global_step 1640
+Epoch 46 Step 34 Loss -730510.875000 global_step 1645
+Epoch 46 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch46.pth
+Epoch 47 Step 4 Loss -801525.812500 global_step 1650
+Epoch 47 Step 9 Loss -737694.750000 global_step 1655
+Epoch 47 Step 14 Loss -742059.750000 global_step 1660
+Epoch 47 Step 19 Loss -746946.125000 global_step 1665
+Epoch 47 Step 24 Loss -745796.500000 global_step 1670
+Epoch 47 Step 29 Loss -747575.062500 global_step 1675
+Epoch 47 Step 34 Loss -733942.437500 global_step 1680
+Epoch 47 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch47.pth
+Epoch 48 Step 4 Loss -733507.125000 global_step 1685
+Epoch 48 Step 9 Loss -755057.875000 global_step 1690
+Epoch 48 Step 14 Loss -803305.750000 global_step 1695
+Epoch 48 Step 19 Loss -760927.937500 global_step 1700
+Epoch 48 Step 24 Loss -772351.312500 global_step 1705
+Epoch 48 Step 29 Loss -734992.687500 global_step 1710
+Epoch 48 Step 34 Loss -740037.437500 global_step 1715
+Epoch 48 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch48.pth
+Epoch 49 Step 4 Loss -735368.625000 global_step 1720
+Epoch 49 Step 9 Loss -752347.750000 global_step 1725
+Epoch 49 Step 14 Loss -743112.000000 global_step 1730
+Epoch 49 Step 19 Loss -773510.125000 global_step 1735
+Epoch 49 Step 24 Loss -767795.875000 global_step 1740
+Epoch 49 Step 29 Loss -750289.500000 global_step 1745
+Epoch 49 Step 34 Loss -747186.187500 global_step 1750
+Epoch 49 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch49.pth
+Epoch 50 Step 4 Loss -736790.000000 global_step 1755
+Epoch 50 Step 9 Loss -753666.375000 global_step 1760
+Epoch 50 Step 14 Loss -749350.937500 global_step 1765
+Epoch 50 Step 19 Loss -774841.312500 global_step 1770
+Epoch 50 Step 24 Loss -818728.625000 global_step 1775
+Epoch 50 Step 29 Loss -784636.375000 global_step 1780
+Epoch 50 Step 34 Loss -769517.437500 global_step 1785
+Epoch 50 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch50.pth
+Epoch 51 Step 4 Loss -740024.875000 global_step 1790
+Epoch 51 Step 9 Loss -754962.500000 global_step 1795
+Epoch 51 Step 14 Loss -759308.375000 global_step 1800
+Epoch 51 Step 19 Loss -738498.187500 global_step 1805
+Epoch 51 Step 24 Loss -743591.125000 global_step 1810
+Epoch 51 Step 29 Loss -752555.250000 global_step 1815
+Epoch 51 Step 34 Loss -750098.937500 global_step 1820
+Epoch 51 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch51.pth
+Epoch 52 Step 4 Loss -771026.000000 global_step 1825
+Epoch 52 Step 9 Loss -733040.125000 global_step 1830
+Epoch 52 Step 14 Loss -741659.000000 global_step 1835
+Epoch 52 Step 19 Loss -737787.500000 global_step 1840
+Epoch 52 Step 24 Loss -749133.000000 global_step 1845
+Epoch 52 Step 29 Loss -787307.437500 global_step 1850
+Epoch 52 Step 34 Loss -747750.000000 global_step 1855
+Epoch 52 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch52.pth
+Epoch 53 Step 4 Loss -755827.687500 global_step 1860
+Epoch 53 Step 9 Loss -787869.375000 global_step 1865
+Epoch 53 Step 14 Loss -745755.250000 global_step 1870
+Epoch 53 Step 19 Loss -767331.625000 global_step 1875
+Epoch 53 Step 24 Loss -752024.625000 global_step 1880
+Epoch 53 Step 29 Loss -740799.625000 global_step 1885
+Epoch 53 Step 34 Loss -743609.937500 global_step 1890
+Epoch 53 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch53.pth
+Epoch 54 Step 4 Loss -724176.312500 global_step 1895
+Epoch 54 Step 9 Loss -762986.125000 global_step 1900
+Epoch 54 Step 14 Loss -740066.500000 global_step 1905
+Epoch 54 Step 19 Loss -742200.312500 global_step 1910
+Epoch 54 Step 24 Loss -751652.312500 global_step 1915
+Epoch 54 Step 29 Loss -736205.250000 global_step 1920
+Epoch 54 Step 34 Loss -764573.625000 global_step 1925
+Epoch 54 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch54.pth
+Epoch 55 Step 4 Loss -756579.937500 global_step 1930
+Epoch 55 Step 9 Loss -753987.125000 global_step 1935
+Epoch 55 Step 14 Loss -775225.937500 global_step 1940
+Epoch 55 Step 19 Loss -755630.625000 global_step 1945
+Epoch 55 Step 24 Loss -771414.375000 global_step 1950
+Epoch 55 Step 29 Loss -763658.250000 global_step 1955
+Epoch 55 Step 34 Loss -765113.125000 global_step 1960
+Epoch 55 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch55.pth
+Epoch 56 Step 4 Loss -749056.562500 global_step 1965
+Epoch 56 Step 9 Loss -755379.125000 global_step 1970
+Epoch 56 Step 14 Loss -761307.625000 global_step 1975
+Epoch 56 Step 19 Loss -746696.937500 global_step 1980
+Epoch 56 Step 24 Loss -744648.750000 global_step 1985
+Epoch 56 Step 29 Loss -772747.625000 global_step 1990
+Epoch 56 Step 34 Loss -752436.750000 global_step 1995
+Epoch 56 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch56.pth
+Epoch 57 Step 4 Loss -742703.437500 global_step 2000
+Epoch 57 Step 9 Loss -765338.187500 global_step 2005
+Epoch 57 Step 14 Loss -777698.437500 global_step 2010
+Epoch 57 Step 19 Loss -757938.250000 global_step 2015
+Epoch 57 Step 24 Loss -755294.687500 global_step 2020
+Epoch 57 Step 29 Loss -827963.875000 global_step 2025
+Epoch 57 Step 34 Loss -767532.250000 global_step 2030
+Epoch 57 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch57.pth
+Epoch 58 Step 4 Loss -766303.875000 global_step 2035
+Epoch 58 Step 9 Loss -756737.500000 global_step 2040
+Epoch 58 Step 14 Loss -746930.312500 global_step 2045
+Epoch 58 Step 19 Loss -757963.187500 global_step 2050
+Epoch 58 Step 24 Loss -761299.875000 global_step 2055
+Epoch 58 Step 29 Loss -752238.250000 global_step 2060
+Epoch 58 Step 34 Loss -747302.500000 global_step 2065
+Epoch 58 done (0.5s). Saved ckpt/center64/fbm_finetuned_epoch58.pth
+Epoch 59 Step 4 Loss -764471.062500 global_step 2070
+Epoch 59 Step 9 Loss -785604.562500 global_step 2075
+Epoch 59 Step 14 Loss -747788.250000 global_step 2080
+Epoch 59 Step 19 Loss -762291.375000 global_step 2085
+Epoch 59 Step 24 Loss -753211.875000 global_step 2090
+Epoch 59 Step 29 Loss -758527.000000 global_step 2095
+Epoch 59 Step 34 Loss -762179.250000 global_step 2100
+Epoch 59 done (0.5s). Saved ckpt/center64/fbm_finetuned_epoch59.pth
+Epoch 60 Step 4 Loss -762948.812500 global_step 2105
+Epoch 60 Step 9 Loss -786754.375000 global_step 2110
+Epoch 60 Step 14 Loss -831067.625000 global_step 2115
+Epoch 60 Step 19 Loss -756472.375000 global_step 2120
+Epoch 60 Step 24 Loss -754343.000000 global_step 2125
+Epoch 60 Step 29 Loss -759650.500000 global_step 2130
+Epoch 60 Step 34 Loss -766017.875000 global_step 2135
+Epoch 60 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch60.pth
+Epoch 61 Step 4 Loss -769600.125000 global_step 2140
+Epoch 61 Step 9 Loss -754983.750000 global_step 2145
+Epoch 61 Step 14 Loss -761284.875000 global_step 2150
+Epoch 61 Step 19 Loss -763918.125000 global_step 2155
+Epoch 61 Step 24 Loss -782817.000000 global_step 2160
+Epoch 61 Step 29 Loss -798388.562500 global_step 2165
+Epoch 61 Step 34 Loss -772191.375000 global_step 2170
+Epoch 61 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch61.pth
+Epoch 62 Step 4 Loss -750821.062500 global_step 2175
+Epoch 62 Step 9 Loss -748528.000000 global_step 2180
+Epoch 62 Step 14 Loss -767572.437500 global_step 2185
+Epoch 62 Step 19 Loss -777653.375000 global_step 2190
+Epoch 62 Step 24 Loss -762750.562500 global_step 2195
+Epoch 62 Step 29 Loss -751902.312500 global_step 2200
+Epoch 62 Step 34 Loss -766169.500000 global_step 2205
+Epoch 62 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch62.pth
+Epoch 63 Step 4 Loss -767311.000000 global_step 2210
+Epoch 63 Step 9 Loss -752068.312500 global_step 2215
+Epoch 63 Step 14 Loss -764352.500000 global_step 2220
+Epoch 63 Step 19 Loss -778725.562500 global_step 2225
+Epoch 63 Step 24 Loss -757649.875000 global_step 2230
+Epoch 63 Step 29 Loss -767115.125000 global_step 2235
+Epoch 63 Step 34 Loss -752327.500000 global_step 2240
+Epoch 63 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch63.pth
+Epoch 64 Step 4 Loss -768381.625000 global_step 2245
+Epoch 64 Step 9 Loss -801166.500000 global_step 2250
+Epoch 64 Step 14 Loss -764624.625000 global_step 2255
+Epoch 64 Step 19 Loss -767143.187500 global_step 2260
+Epoch 64 Step 24 Loss -773618.437500 global_step 2265
+Epoch 64 Step 29 Loss -761552.500000 global_step 2270
+Epoch 64 Step 34 Loss -761226.000000 global_step 2275
+Epoch 64 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch64.pth
+Epoch 65 Step 4 Loss -802130.250000 global_step 2280
+Epoch 65 Step 9 Loss -754252.000000 global_step 2285
+Epoch 65 Step 14 Loss -787075.625000 global_step 2290
+Epoch 65 Step 19 Loss -762323.875000 global_step 2295
+Epoch 65 Step 24 Loss -754984.375000 global_step 2300
+Epoch 65 Step 29 Loss -770193.250000 global_step 2305
+Epoch 65 Step 34 Loss -793089.250000 global_step 2310
+Epoch 65 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch65.pth
+Epoch 66 Step 4 Loss -755115.750000 global_step 2315
+Epoch 66 Step 9 Loss -760394.250000 global_step 2320
+Epoch 66 Step 14 Loss -768477.312500 global_step 2325
+Epoch 66 Step 19 Loss -769230.500000 global_step 2330
+Epoch 66 Step 24 Loss -782014.500000 global_step 2335
+Epoch 66 Step 29 Loss -838421.125000 global_step 2340
+Epoch 66 Step 34 Loss -772378.312500 global_step 2345
+Epoch 66 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch66.pth
+Epoch 67 Step 4 Loss -767615.250000 global_step 2350
+Epoch 67 Step 9 Loss -838893.687500 global_step 2355
+Epoch 67 Step 14 Loss -826254.875000 global_step 2360
+Epoch 67 Step 19 Loss -784318.875000 global_step 2365
+Epoch 67 Step 24 Loss -764018.562500 global_step 2370
+Epoch 67 Step 29 Loss -756901.500000 global_step 2375
+Epoch 67 Step 34 Loss -764900.500000 global_step 2380
+Epoch 67 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch67.pth
+Epoch 68 Step 4 Loss -790091.375000 global_step 2385
+Epoch 68 Step 9 Loss -757677.062500 global_step 2390
+Epoch 68 Step 14 Loss -777133.812500 global_step 2395
+Epoch 68 Step 19 Loss -767871.187500 global_step 2400
+Epoch 68 Step 24 Loss -770791.062500 global_step 2405
+Epoch 68 Step 29 Loss -827793.750000 global_step 2410
+Epoch 68 Step 34 Loss -756172.625000 global_step 2415
+Epoch 68 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch68.pth
+Epoch 69 Step 4 Loss -757674.937500 global_step 2420
+Epoch 69 Step 9 Loss -828252.625000 global_step 2425
+Epoch 69 Step 14 Loss -766387.375000 global_step 2430
+Epoch 69 Step 19 Loss -806963.625000 global_step 2435
+Epoch 69 Step 24 Loss -786468.000000 global_step 2440
+Epoch 69 Step 29 Loss -766164.562500 global_step 2445
+Epoch 69 Step 34 Loss -770646.500000 global_step 2450
+Epoch 69 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch69.pth
+Epoch 70 Step 4 Loss -756802.375000 global_step 2455
+Epoch 70 Step 9 Loss -767272.625000 global_step 2460
+Epoch 70 Step 14 Loss -842294.750000 global_step 2465
+Epoch 70 Step 19 Loss -759688.875000 global_step 2470
+Epoch 70 Step 24 Loss -775150.750000 global_step 2475
+Epoch 70 Step 29 Loss -798175.062500 global_step 2480
+Epoch 70 Step 34 Loss -773709.000000 global_step 2485
+Epoch 70 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch70.pth
+Epoch 71 Step 4 Loss -770465.750000 global_step 2490
+Epoch 71 Step 9 Loss -767569.437500 global_step 2495
+Epoch 71 Step 14 Loss -765668.562500 global_step 2500
+Epoch 71 Step 19 Loss -760662.812500 global_step 2505
+Epoch 71 Step 24 Loss -787026.625000 global_step 2510
+Epoch 71 Step 29 Loss -761311.187500 global_step 2515
+Epoch 71 Step 34 Loss -759191.937500 global_step 2520
+Epoch 71 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch71.pth
+Epoch 72 Step 4 Loss -772657.875000 global_step 2525
+Epoch 72 Step 9 Loss -781355.625000 global_step 2530
+Epoch 72 Step 14 Loss -763136.500000 global_step 2535
+Epoch 72 Step 19 Loss -761096.125000 global_step 2540
+Epoch 72 Step 24 Loss -769735.125000 global_step 2545
+Epoch 72 Step 29 Loss -832005.562500 global_step 2550
+Epoch 72 Step 34 Loss -800339.812500 global_step 2555
+Epoch 72 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch72.pth
+Epoch 73 Step 4 Loss -774089.875000 global_step 2560
+Epoch 73 Step 9 Loss -745082.625000 global_step 2565
+Epoch 73 Step 14 Loss -788688.250000 global_step 2570
+Epoch 73 Step 19 Loss -790223.500000 global_step 2575
+Epoch 73 Step 24 Loss -779836.375000 global_step 2580
+Epoch 73 Step 29 Loss -784851.750000 global_step 2585
+Epoch 73 Step 34 Loss -774753.125000 global_step 2590
+Epoch 73 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch73.pth
+Epoch 74 Step 4 Loss -745926.000000 global_step 2595
+Epoch 74 Step 9 Loss -760916.750000 global_step 2600
+Epoch 74 Step 14 Loss -796816.250000 global_step 2605
+Epoch 74 Step 19 Loss -777181.812500 global_step 2610
+Epoch 74 Step 24 Loss -775475.437500 global_step 2615
+Epoch 74 Step 29 Loss -780954.562500 global_step 2620
+Epoch 74 Step 34 Loss -775493.625000 global_step 2625
+Epoch 74 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch74.pth
+Epoch 75 Step 4 Loss -763593.750000 global_step 2630
+Epoch 75 Step 9 Loss -764296.375000 global_step 2635
+Epoch 75 Step 14 Loss -762544.125000 global_step 2640
+Epoch 75 Step 19 Loss -847636.750000 global_step 2645
+Epoch 75 Step 24 Loss -776472.312500 global_step 2650
+Epoch 75 Step 29 Loss -803166.000000 global_step 2655
+Epoch 75 Step 34 Loss -765384.062500 global_step 2660
+Epoch 75 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch75.pth
+Epoch 76 Step 4 Loss -781340.000000 global_step 2665
+Epoch 76 Step 9 Loss -775272.312500 global_step 2670
+Epoch 76 Step 14 Loss -780097.625000 global_step 2675
+Epoch 76 Step 19 Loss -785490.250000 global_step 2680
+Epoch 76 Step 24 Loss -799179.000000 global_step 2685
+Epoch 76 Step 29 Loss -804137.437500 global_step 2690
+Epoch 76 Step 34 Loss -777434.625000 global_step 2695
+Epoch 76 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch76.pth
+Epoch 77 Step 4 Loss -780794.250000 global_step 2700
+Epoch 77 Step 9 Loss -773266.125000 global_step 2705
+Epoch 77 Step 14 Loss -749108.750000 global_step 2710
+Epoch 77 Step 19 Loss -849651.750000 global_step 2715
+Epoch 77 Step 24 Loss -780151.750000 global_step 2720
+Epoch 77 Step 29 Loss -805104.000000 global_step 2725
+Epoch 77 Step 34 Loss -766879.500000 global_step 2730
+Epoch 77 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch77.pth
+Epoch 78 Step 4 Loss -784097.812500 global_step 2735
+Epoch 78 Step 9 Loss -767574.125000 global_step 2740
+Epoch 78 Step 14 Loss -789377.250000 global_step 2745
+Epoch 78 Step 19 Loss -782173.750000 global_step 2750
+Epoch 78 Step 24 Loss -774579.500000 global_step 2755
+Epoch 78 Step 29 Loss -850928.750000 global_step 2760
+Epoch 78 Step 34 Loss -779348.750000 global_step 2765
+Epoch 78 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch78.pth
+Epoch 79 Step 4 Loss -761742.125000 global_step 2770
+Epoch 79 Step 9 Loss -787411.937500 global_step 2775
+Epoch 79 Step 14 Loss -778416.750000 global_step 2780
+Epoch 79 Step 19 Loss -794435.437500 global_step 2785
+Epoch 79 Step 24 Loss -778600.250000 global_step 2790
+Epoch 79 Step 29 Loss -783908.812500 global_step 2795
+Epoch 79 Step 34 Loss -796207.375000 global_step 2800
+Epoch 79 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch79.pth
+Epoch 80 Step 4 Loss -767004.625000 global_step 2805
+Epoch 80 Step 9 Loss -817859.625000 global_step 2810
+Epoch 80 Step 14 Loss -788442.625000 global_step 2815
+Epoch 80 Step 19 Loss -766900.375000 global_step 2820
+Epoch 80 Step 24 Loss -774581.500000 global_step 2825
+Epoch 80 Step 29 Loss -783048.000000 global_step 2830
+Epoch 80 Step 34 Loss -785816.125000 global_step 2835
+Epoch 80 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch80.pth
+Epoch 81 Step 4 Loss -789744.125000 global_step 2840
+Epoch 81 Step 9 Loss -776902.437500 global_step 2845
+Epoch 81 Step 14 Loss -772200.625000 global_step 2850
+Epoch 81 Step 19 Loss -797621.125000 global_step 2855
+Epoch 81 Step 24 Loss -786459.000000 global_step 2860
+Epoch 81 Step 29 Loss -780633.875000 global_step 2865
+Epoch 81 Step 34 Loss -768216.625000 global_step 2870
+Epoch 81 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch81.pth
+Epoch 82 Step 4 Loss -771181.875000 global_step 2875
+Epoch 82 Step 9 Loss -819786.437500 global_step 2880
+Epoch 82 Step 14 Loss -782563.062500 global_step 2885
+Epoch 82 Step 19 Loss -787228.937500 global_step 2890
+Epoch 82 Step 24 Loss -768874.375000 global_step 2895
+Epoch 82 Step 29 Loss -782999.375000 global_step 2900
+Epoch 82 Step 34 Loss -773628.500000 global_step 2905
+Epoch 82 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch82.pth
+Epoch 83 Step 4 Loss -783656.500000 global_step 2910
+Epoch 83 Step 9 Loss -797771.500000 global_step 2915
+Epoch 83 Step 14 Loss -772361.187500 global_step 2920
+Epoch 83 Step 19 Loss -773413.875000 global_step 2925
+Epoch 83 Step 24 Loss -806188.250000 global_step 2930
+Epoch 83 Step 29 Loss -842917.625000 global_step 2935
+Epoch 83 Step 34 Loss -799773.625000 global_step 2940
+Epoch 83 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch83.pth
+Epoch 84 Step 4 Loss -770168.812500 global_step 2945
+Epoch 84 Step 9 Loss -780823.500000 global_step 2950
+Epoch 84 Step 14 Loss -772193.625000 global_step 2955
+Epoch 84 Step 19 Loss -795204.187500 global_step 2960
+Epoch 84 Step 24 Loss -811516.187500 global_step 2965
+Epoch 84 Step 29 Loss -793086.875000 global_step 2970
+Epoch 84 Step 34 Loss -783468.937500 global_step 2975
+Epoch 84 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch84.pth
+Epoch 85 Step 4 Loss -793340.000000 global_step 2980
+Epoch 85 Step 9 Loss -822621.500000 global_step 2985
+Epoch 85 Step 14 Loss -812164.500000 global_step 2990
+Epoch 85 Step 19 Loss -785364.375000 global_step 2995
+Epoch 85 Step 24 Loss -771579.937500 global_step 3000
+Epoch 85 Step 29 Loss -773462.812500 global_step 3005
+Epoch 85 Step 34 Loss -844943.250000 global_step 3010
+Epoch 85 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch85.pth
+Epoch 86 Step 4 Loss -790369.937500 global_step 3015
+Epoch 86 Step 9 Loss -768249.125000 global_step 3020
+Epoch 86 Step 14 Loss -788008.562500 global_step 3025
+Epoch 86 Step 19 Loss -845478.750000 global_step 3030
+Epoch 86 Step 24 Loss -790074.625000 global_step 3035
+Epoch 86 Step 29 Loss -787095.437500 global_step 3040
+Epoch 86 Step 34 Loss -799081.187500 global_step 3045
+Epoch 86 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch86.pth
+Epoch 87 Step 4 Loss -777303.125000 global_step 3050
+Epoch 87 Step 9 Loss -774723.250000 global_step 3055
+Epoch 87 Step 14 Loss -794552.250000 global_step 3060
+Epoch 87 Step 19 Loss -859248.250000 global_step 3065
+Epoch 87 Step 24 Loss -790653.750000 global_step 3070
+Epoch 87 Step 29 Loss -791077.875000 global_step 3075
+Epoch 87 Step 34 Loss -788545.625000 global_step 3080
+Epoch 87 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch87.pth
+Epoch 88 Step 4 Loss -786417.937500 global_step 3085
+Epoch 88 Step 9 Loss -775597.500000 global_step 3090
+Epoch 88 Step 14 Loss -814852.187500 global_step 3095
+Epoch 88 Step 19 Loss -776971.750000 global_step 3100
+Epoch 88 Step 24 Loss -770388.875000 global_step 3105
+Epoch 88 Step 29 Loss -791945.187500 global_step 3110
+Epoch 88 Step 34 Loss -804087.250000 global_step 3115
+Epoch 88 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch88.pth
+Epoch 89 Step 4 Loss -788626.812500 global_step 3120
+Epoch 89 Step 9 Loss -785330.250000 global_step 3125
+Epoch 89 Step 14 Loss -783961.062500 global_step 3130
+Epoch 89 Step 19 Loss -777353.625000 global_step 3135
+Epoch 89 Step 24 Loss -826692.750000 global_step 3140
+Epoch 89 Step 29 Loss -778835.375000 global_step 3145
+Epoch 89 Step 34 Loss -790238.812500 global_step 3150
+Epoch 89 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch89.pth
+Epoch 90 Step 4 Loss -771629.125000 global_step 3155
+Epoch 90 Step 9 Loss -780022.687500 global_step 3160
+Epoch 90 Step 14 Loss -812607.125000 global_step 3165
+Epoch 90 Step 19 Loss -783353.687500 global_step 3170
+Epoch 90 Step 24 Loss -793319.562500 global_step 3175
+Epoch 90 Step 29 Loss -816986.937500 global_step 3180
+Epoch 90 Step 34 Loss -788680.062500 global_step 3185
+Epoch 90 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch90.pth
+Epoch 91 Step 4 Loss -776829.750000 global_step 3190
+Epoch 91 Step 9 Loss -791317.000000 global_step 3195
+Epoch 91 Step 14 Loss -828235.437500 global_step 3200
+Epoch 91 Step 19 Loss -779017.875000 global_step 3205
+Epoch 91 Step 24 Loss -799023.437500 global_step 3210
+Epoch 91 Step 29 Loss -780511.500000 global_step 3215
+Epoch 91 Step 34 Loss -781481.000000 global_step 3220
+Epoch 91 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch91.pth
+Epoch 92 Step 4 Loss -814202.500000 global_step 3225
+Epoch 92 Step 9 Loss -790093.750000 global_step 3230
+Epoch 92 Step 14 Loss -793141.062500 global_step 3235
+Epoch 92 Step 19 Loss -795834.250000 global_step 3240
+Epoch 92 Step 24 Loss -863911.250000 global_step 3245
+Epoch 92 Step 29 Loss -785301.250000 global_step 3250
+Epoch 92 Step 34 Loss -851367.000000 global_step 3255
+Epoch 92 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch92.pth
+Epoch 93 Step 4 Loss -792855.312500 global_step 3260
+Epoch 93 Step 9 Loss -795561.500000 global_step 3265
+Epoch 93 Step 14 Loss -806412.562500 global_step 3270
+Epoch 93 Step 19 Loss -794093.375000 global_step 3275
+Epoch 93 Step 24 Loss -787512.062500 global_step 3280
+Epoch 93 Step 29 Loss -774802.437500 global_step 3285
+Epoch 93 Step 34 Loss -781140.625000 global_step 3290
+Epoch 93 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch93.pth
+Epoch 94 Step 4 Loss -781190.000000 global_step 3295
+Epoch 94 Step 9 Loss -865302.750000 global_step 3300
+Epoch 94 Step 14 Loss -783519.937500 global_step 3305
+Epoch 94 Step 19 Loss -798701.125000 global_step 3310
+Epoch 94 Step 24 Loss -781076.812500 global_step 3315
+Epoch 94 Step 29 Loss -804405.000000 global_step 3320
+Epoch 94 Step 34 Loss -792447.000000 global_step 3325
+Epoch 94 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch94.pth
+Epoch 95 Step 4 Loss -804651.500000 global_step 3330
+Epoch 95 Step 9 Loss -776000.937500 global_step 3335
+Epoch 95 Step 14 Loss -809411.375000 global_step 3340
+Epoch 95 Step 19 Loss -821025.562500 global_step 3345
+Epoch 95 Step 24 Loss -794963.687500 global_step 3350
+Epoch 95 Step 29 Loss -791023.875000 global_step 3355
+Epoch 95 Step 34 Loss -817729.125000 global_step 3360
+Epoch 95 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch95.pth
+Epoch 96 Step 4 Loss -854158.000000 global_step 3365
+Epoch 96 Step 9 Loss -795417.812500 global_step 3370
+Epoch 96 Step 14 Loss -810220.750000 global_step 3375
+Epoch 96 Step 19 Loss -805878.562500 global_step 3380
+Epoch 96 Step 24 Loss -821988.500000 global_step 3385
+Epoch 96 Step 29 Loss -793563.437500 global_step 3390
+Epoch 96 Step 34 Loss -833123.750000 global_step 3395
+Epoch 96 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch96.pth
+Epoch 97 Step 4 Loss -809427.812500 global_step 3400
+Epoch 97 Step 9 Loss -855161.125000 global_step 3405
+Epoch 97 Step 14 Loss -833491.062500 global_step 3410
+Epoch 97 Step 19 Loss -785180.500000 global_step 3415
+Epoch 97 Step 24 Loss -811253.875000 global_step 3420
+Epoch 97 Step 29 Loss -790848.937500 global_step 3425
+Epoch 97 Step 34 Loss -792834.125000 global_step 3430
+Epoch 97 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch97.pth
+Epoch 98 Step 4 Loss -767490.375000 global_step 3435
+Epoch 98 Step 9 Loss -868780.000000 global_step 3440
+Epoch 98 Step 14 Loss -785868.125000 global_step 3445
+Epoch 98 Step 19 Loss -810568.250000 global_step 3450
+Epoch 98 Step 24 Loss -798301.375000 global_step 3455
+Epoch 98 Step 29 Loss -793549.000000 global_step 3460
+Epoch 98 Step 34 Loss -807938.062500 global_step 3465
+Epoch 98 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch98.pth
+Epoch 99 Step 4 Loss -795418.125000 global_step 3470
+Epoch 99 Step 9 Loss -793906.875000 global_step 3475
+Epoch 99 Step 14 Loss -792090.562500 global_step 3480
+Epoch 99 Step 19 Loss -857144.250000 global_step 3485
+Epoch 99 Step 24 Loss -812841.937500 global_step 3490
+Epoch 99 Step 29 Loss -808659.125000 global_step 3495
+Epoch 99 Step 34 Loss -811696.750000 global_step 3500
+Epoch 99 done (0.4s). Saved ckpt/center64/fbm_finetuned_epoch99.pth
+Training finished. Final checkpoint in ckpt/center64

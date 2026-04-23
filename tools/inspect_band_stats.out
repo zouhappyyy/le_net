@@ -1,0 +1,37 @@
+/home/fangzheng/miniconda3/envs/zl_nnunetv1/lib/python3.9/site-packages/torch/utils/cpp_extension.py:25: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging  # type: ignore[attr-defined]
+Using /home/fangzheng/.cache/torch_extensions/py39_cu113 as PyTorch extensions root...
+Detected CUDA files, patching ldflags
+Emitting ninja build file /home/fangzheng/.cache/torch_extensions/py39_cu113/wkv/build.ninja...
+Building extension module wkv...
+Allowing ninja to set a default number of workers... (overridable by setting the environment variable MAX_JOBS=N)
+ninja: no work to do.
+Loading extension module wkv...
+Loaded ESO_TJ_1010018171 shape (2, 128, 128, 128)
+
+=== Band 1 ===
+energy raw: 443069.8125 energy weighted: 443071.4375 ratio: 1.0000036675935804
+raw slice stats: {'min': -2.70803165435791, 'max': 4.424625396728516, 'mean': -0.0012224656529724598, 'std': 0.4309944808483124, 'p50': -0.0015411376953125, 'p95': 0.521481865644455}
+weighted slice stats: {'min': -2.707973003387451, 'max': 4.424673557281494, 'mean': -0.0012226277031004429, 'std': 0.43099555373191833, 'p50': -0.0015411494532600045, 'p95': 0.5214849799871445}
+raw slice sample: [-0.00880289 -0.02657437 -0.00131345  0.07548475  0.03066421 -0.32691503
+ -0.76032233 -0.75412226 -0.31963348  0.02006364]
+weighted slice sample: [-0.00880293 -0.02657435 -0.00131345  0.0754847   0.03066418 -0.3269148
+ -0.7603218  -0.7541217  -0.31963325  0.02006362]
+
+=== Band 2 ===
+energy raw: 473200.15625 energy weighted: 473200.5 ratio: 1.0000007264367847
+raw slice stats: {'min': -2.2475459575653076, 'max': 3.8563380241394043, 'mean': -0.04176552593708038, 'std': 0.4611019790172577, 'p50': -0.08101058006286621, 'p95': 0.7194110453128814}
+weighted slice stats: {'min': -2.247549533843994, 'max': 3.85632061958313, 'mean': -0.04176619276404381, 'std': 0.4611022174358368, 'p50': -0.08101052790880203, 'p95': 0.7194106936454772}
+raw slice sample: [-0.06916738 -0.052876   -0.10024786 -0.23890805 -0.3024869  -0.07100701
+  0.28398347  0.30136275 -0.02150655 -0.23196101]
+weighted slice sample: [-0.06916768 -0.05287613 -0.10024811 -0.23890865 -0.30248764 -0.07100719
+  0.28398418  0.3013635  -0.0215066  -0.2319616 ]
+
+=== Band 3 ===
+energy raw: 742143.5 energy weighted: 742137.875 ratio: 0.9999924206032931
+raw slice stats: {'min': -1.6161375045776367, 'max': 2.197251319885254, 'mean': -0.16426894068717957, 'std': 0.5620441436767578, 'p50': -0.4454754590988159, 'p95': 0.7662333399057386}
+weighted slice stats: {'min': -1.6161236763000488, 'max': 2.1972641944885254, 'mean': -0.164265438914299, 'std': 0.5620431303977966, 'p50': -0.4454716444015503, 'p95': 0.7662370294332502}
+raw slice sample: [-0.4587829  -0.47213292 -0.47421956 -0.44749284 -0.38218808 -0.29672575
+ -0.24067926 -0.2571919  -0.3360908  -0.42311835]
+weighted slice sample: [-0.4587797  -0.47212937 -0.47421598 -0.44748947 -0.38218522 -0.2967235
+ -0.24067746 -0.25718996 -0.33608827 -0.42311516]
