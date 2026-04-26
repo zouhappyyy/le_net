@@ -1,0 +1,2 @@
+"""Clinical assistant MVP package."""
+
