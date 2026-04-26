@@ -9,6 +9,7 @@ import nibabel as nib
 import numpy as np
 
 from nnunet_mednext.utilities.overlay_plots import generate_overlay
+from visualize_fd_edge_and_ds import _extract_case_data
 
 
 # Built-in model mapping for Task602_ls.
@@ -23,6 +24,7 @@ MODELS_TASK602_LS = {
 }
 
 TASK602_DEFAULT_CONFIG = {
+    "data_root": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task602_ls/nnUNetData_plans_v2.1_stage0",
     "dataset_directory": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task602_ls",
     "fold": 0,
     "output_dir": "./Task602_tp_fp_fn_vis",
@@ -54,18 +56,6 @@ def _load_label_nifti(label_path: str) -> np.ndarray:
     return np.transpose(arr, (2, 1, 0)).astype(np.int16)
 
 
-def _load_image_nifti(image_path: str) -> np.ndarray:
-    if not os.path.isfile(image_path):
-        raise FileNotFoundError(f"Image file not found: {image_path}")
-
-    arr = nib.load(image_path).get_fdata()
-    if arr.ndim == 3:
-        return np.transpose(arr, (2, 1, 0)).astype(np.float32)
-    if arr.ndim == 4 and arr.shape[-1] == 1:
-        return np.transpose(arr[..., 0], (2, 1, 0)).astype(np.float32)
-    raise RuntimeError(f"Expected 3D image or single-channel 4D image, got shape {arr.shape} from {image_path}")
-
-
 def _find_gt_path(dataset_directory: str, case_id: str) -> str:
     """Find GT path under a Task directory."""
     gt_candidates = [
@@ -83,26 +73,22 @@ def _find_gt_path(dataset_directory: str, case_id: str) -> str:
     raise FileNotFoundError(f"Could not find GT for case {case_id} under {dataset_directory}")
 
 
-def _find_image_path(dataset_directory: str, case_id: str) -> str:
-    image_dirs = [
-        os.path.join(dataset_directory, "imagesTr"),
-        os.path.join(dataset_directory, "imagesTs"),
-        dataset_directory,
-    ]
-    image_names = [
-        f"{case_id}_0000.nii.gz",
-        f"{case_id}_0000.nii",
-        f"{case_id}.nii.gz",
-        f"{case_id}.nii",
-    ]
-    for image_dir in image_dirs:
-        if not os.path.isdir(image_dir):
-            continue
-        for image_name in image_names:
-            cand = os.path.join(image_dir, image_name)
-            if os.path.isfile(cand):
-                return cand
-    raise FileNotFoundError(f"Could not find raw image for case {case_id} under {dataset_directory}")
+def _load_preprocessed_image_and_gt(data_root: str, dataset_directory: str, case_id: str) -> Tuple[np.ndarray, np.ndarray]:
+    """Load Task602 image from preprocessed .npy and GT from gt_segmentations.
+
+    Returns
+    -------
+    image : np.ndarray
+        Single-channel image in [D, H, W].
+    gt : np.ndarray
+        Label map in [D, H, W].
+    """
+    image, gt = _extract_case_data(data_root, case_id, dataset_directory)
+    if image.ndim != 4:
+        raise RuntimeError(f"Expected image from _extract_case_data to be [C,D,H,W], got {image.shape}")
+    if gt.ndim != 4:
+        raise RuntimeError(f"Expected gt from _extract_case_data to be [1,D,H,W], got {gt.shape}")
+    return image[0].astype(np.float32), gt[0].astype(np.int16)
 
 
 def _find_pred_path(pred_folder: str, case_id: str) -> str:
@@ -240,6 +226,7 @@ def _normalize_slices(shape_zyx: Tuple[int, int, int], axis: str, slices: Option
 
 
 def visualize_case_tp_fp_fn(
+    data_root: str,
     dataset_directory: str,
     pred_folder: str,
     case_id: str,
@@ -263,8 +250,7 @@ def visualize_case_tp_fp_fn(
     os.makedirs(output_dir, exist_ok=True)
     results: List[Dict[str, object]] = []
 
-    image = _load_image_nifti(_find_image_path(dataset_directory, case_id))
-    gt = _load_label_nifti(_find_gt_path(dataset_directory, case_id))
+    image, gt = _load_preprocessed_image_and_gt(data_root, dataset_directory, case_id)
     pred = _load_label_nifti(_find_pred_path(pred_folder, case_id))
     image, pred, gt = _match_shapes_3d(image, pred, gt)
 
@@ -558,6 +544,7 @@ def _compose_panels_for_folder(output_dir: str, model_names: List[str], fold: in
 
 
 def _run_batch(
+    data_root: str,
     dataset_directory: str,
     pred_folders: Optional[List[str]],
     model_names: Optional[List[str]],
@@ -609,6 +596,7 @@ def _run_batch(
             for axis in ("z", "y", "x"):
                 try:
                     results = visualize_case_tp_fp_fn(
+                        data_root=data_root,
                         dataset_directory=dataset_directory,
                         pred_folder=pred_folder,
                         case_id=case_id,
@@ -647,6 +635,7 @@ def _run_batch(
 def run_task602_default() -> None:
     cfg = TASK602_DEFAULT_CONFIG
     _run_batch(
+        data_root=cfg["data_root"],
         dataset_directory=cfg["dataset_directory"],
         pred_folders=None,
         model_names=None,
@@ -666,6 +655,7 @@ def _build_argparser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command")
 
     p_single = subparsers.add_parser("single", help="Visualize one case")
+    p_single.add_argument("--data_root", type=str, required=True, help="Preprocessed stage0 .npy folder")
     p_single.add_argument("--dataset_directory", type=str, required=True, help="Task directory with GT masks")
     p_single.add_argument("--pred_folder", type=str, required=True, help="Folder with prediction NIfTI files")
     p_single.add_argument("--case_id", type=str, required=True, help="Case id to visualize")
@@ -678,6 +668,7 @@ def _build_argparser() -> argparse.ArgumentParser:
     p_single.add_argument("--save_gt_overlay", action="store_true", help="Also export GT-overlaid image slices")
 
     p_batch = subparsers.add_parser("batch", help="Batch visualize multiple models")
+    p_batch.add_argument("--data_root", type=str, required=True, help="Preprocessed stage0 .npy folder")
     p_batch.add_argument("--dataset_directory", type=str, required=True, help="Task directory with GT masks")
     p_batch.add_argument(
         "--pred_folders",
@@ -715,6 +706,7 @@ if __name__ == "__main__":
 
     if args.command == "single":
         visualize_case_tp_fp_fn(
+            data_root=args.data_root,
             dataset_directory=args.dataset_directory,
             pred_folder=args.pred_folder,
             case_id=args.case_id,
@@ -728,6 +720,7 @@ if __name__ == "__main__":
         )
     elif args.command == "batch":
         _run_batch(
+            data_root=args.data_root,
             dataset_directory=args.dataset_directory,
             pred_folders=args.pred_folders,
             model_names=args.model_names,
