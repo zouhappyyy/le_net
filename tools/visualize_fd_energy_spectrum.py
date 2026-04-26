@@ -154,6 +154,96 @@ def _save_feature_arrays(out_dir: str, case_tag: str, layer: str, pre_feat: np.n
     return pre_path, post_path
 
 
+def _collapse_feature_for_display(feat: np.ndarray) -> np.ndarray:
+    """Collapse a CxDxHxW feature tensor to a single 3D volume for visualization."""
+    if feat.ndim == 4:
+        return feat.mean(axis=0)
+    if feat.ndim == 3:
+        return feat
+    raise ValueError(f'Unsupported feature ndim {feat.ndim}')
+
+
+def _save_feature_triplet_figure(input_feat: np.ndarray, output_feat: np.ndarray, out_png: str, title: Optional[str], case_tag: str, layer: str):
+    inp = _collapse_feature_for_display(input_feat)
+    out = _collapse_feature_for_display(output_feat)
+    diff = out - inp
+
+    mid = inp.shape[0] // 2
+    inp_slice = inp[mid]
+    out_slice = out[mid]
+    diff_slice = diff[mid]
+
+    lim = max(1e-6, float(np.percentile(np.abs(diff_slice), 99)))
+
+    fig = plt.figure(figsize=(15, 5))
+    ax1 = fig.add_subplot(1, 3, 1)
+    ax2 = fig.add_subplot(1, 3, 2)
+    ax3 = fig.add_subplot(1, 3, 3)
+
+    ax1.imshow(inp_slice, cmap='gray', interpolation='bicubic')
+    ax1.set_title('Input feature')
+    ax1.axis('off')
+
+    ax2.imshow(out_slice, cmap='gray', interpolation='bicubic')
+    ax2.set_title('Output feature')
+    ax2.axis('off')
+
+    im = ax3.imshow(diff_slice, cmap='RdBu', vmin=-lim, vmax=lim, interpolation='bicubic')
+    ax3.set_title('Difference (output - input)')
+    ax3.axis('off')
+    fig.colorbar(im, ax=ax3, fraction=0.046)
+
+    fig.suptitle(title or f'Feature enhancement comparison ({case_tag}, {layer})')
+    fig.tight_layout()
+    fig.savefig(out_png, dpi=220)
+    plt.close(fig)
+
+
+def _spectrum_features(vol: np.ndarray) -> dict:
+    """Compute and return the magnitude and phase spectra of a 3D volume."""
+    fft = np.fft.fftn(vol, norm='ortho')
+    mag = np.abs(fft)
+    phase = np.angle(fft)
+    return {'mag': mag, 'phase': phase}
+
+
+def _save_spectrum_triplet_figure(input_feat: np.ndarray, output_feat: np.ndarray, out_png: str, title: Optional[str], hf_in: float, hf_out: float, case_tag: str, layer: str):
+    inp = _collapse_feature_for_display(input_feat)
+    out = _collapse_feature_for_display(output_feat)
+    diff = out - inp
+
+    inp_spec = _spectrum_features(inp)
+    out_spec = _spectrum_features(out)
+    diff_spec = _spectrum_features(diff)
+
+    fig = plt.figure(figsize=(15, 5))
+    ax1 = fig.add_subplot(1, 3, 1)
+    ax2 = fig.add_subplot(1, 3, 2)
+    ax3 = fig.add_subplot(1, 3, 3)
+
+    mid_in = inp_spec['mag'].shape[0] // 2
+    mid_out = out_spec['mag'].shape[0] // 2
+    mid_diff = diff_spec['mag'].shape[0] // 2
+
+    ax1.imshow(np.log1p(inp_spec['mag'])[mid_in], cmap='magma', interpolation='bicubic')
+    ax1.set_title('Input spectrum |FFT| (log1p)')
+    ax1.axis('off')
+
+    ax2.imshow(np.log1p(out_spec['mag'])[mid_out], cmap='magma', interpolation='bicubic')
+    ax2.set_title('Output spectrum |FFT| (log1p)')
+    ax2.axis('off')
+
+    ax3.imshow(np.log1p(diff_spec['mag'])[mid_diff], cmap='magma', interpolation='bicubic')
+    ax3.set_title('Difference spectrum |FFT| (log1p)')
+    ax3.axis('off')
+
+    fig.suptitle(title or f'Frequency-domain enhancement ({case_tag}, {layer})')
+    fig.text(0.5, 0.02, f'HF ratio in={hf_in:.3f}   out={hf_out:.3f}   Δ={hf_out-hf_in:+.3f}', ha='center')
+    fig.tight_layout(rect=(0, 0.05, 1, 0.95))
+    fig.savefig(out_png, dpi=220)
+    plt.close(fig)
+
+
 def _save_compare_plot(radii_in, norm_in, radii_out, norm_out, out_png: str, title: Optional[str], hf_in: float, hf_out: float, input_label='input', output_label='output'):
     fig, ax = plt.subplots(figsize=(8.2, 5.6))
     ax.plot(radii_in, norm_in, lw=2.2, color='C0', label=input_label)
@@ -190,6 +280,7 @@ def main():
     parser.add_argument('--title', default=None)
     parser.add_argument('--device', default='cpu')
     parser.add_argument('--feature_mode', action='store_true', help='Compare FBM pre/post features instead of raw volumes')
+    parser.add_argument('--feature_triplet', action='store_true', help='Save input/output/difference feature maps instead of spectral curves')
     parser.add_argument('--batch_all', action='store_true', help='Export feature-mode spectra for all cases under --data_root')
     args = parser.parse_args()
 
@@ -219,6 +310,27 @@ def main():
                     cmd_args.extend(['--title', args.title])
                 # Re-enter main() logic by executing the same script in a subprocess for each case/layer.
                 os.system(' '.join([sys.executable, os.path.abspath(__file__)] + [f'"{a}"' if ' ' in a else a for a in cmd_args]))
+        return
+
+    if args.feature_triplet:
+        if args.ckpt is None:
+            raise ValueError('--feature_triplet requires --ckpt')
+        if args.data_root is None and args.input.endswith('.npy') is False:
+            raise ValueError('--feature_triplet with case id requires --data_root')
+        path = _find_case_path(args.data_root, args.input) if args.data_root is not None and not args.input.endswith('.npy') else args.input
+        if not os.path.isfile(path):
+            raise FileNotFoundError(path)
+        vol = _load_volume(path)
+        vol = np.stack([vol, vol], axis=0)
+        model = _load_model(args.ckpt, in_channels=vol.shape[0])
+        inp_feat, out_feat = _extract_fbm_pair(model, vol, layer=args.layer, device=args.device)
+        case_tag = os.path.splitext(os.path.basename(path))[0]
+        title = args.title or f'Input vs Output Feature Enhancement ({args.layer})'
+        _save_feature_triplet_figure(inp_feat, out_feat, args.out_png, title, case_tag, args.layer)
+        _save_spectrum_triplet_figure(inp_feat, out_feat, args.out_png.replace('.png', '_spectrum.png'), title, _high_ratio(_collapse_feature_for_display(inp_feat)), _high_ratio(_collapse_feature_for_display(out_feat)), case_tag, args.layer)
+        print(f'Saved feature triplet figure: {args.out_png}')
+        spectrum_out = args.out_png.replace('.png', '_spectrum.png')
+        print(f'Saved spectrum triplet figure: {spectrum_out}')
         return
 
     if args.feature_mode:
