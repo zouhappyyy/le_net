@@ -74,12 +74,12 @@ def _find_gt_path(dataset_directory: str, case_id: str) -> str:
 
 
 def _load_preprocessed_image_and_gt(data_root: str, dataset_directory: str, case_id: str) -> Tuple[np.ndarray, np.ndarray]:
-    """Load Task602 image from preprocessed .npy and GT from gt_segmentations.
+    """Load Task602 exactly the same way as visualize_val_overlay.py.
 
     Returns
     -------
     image : np.ndarray
-        Single-channel image in [D, H, W].
+        Image volume in [C, D, H, W].
     gt : np.ndarray
         Label map in [D, H, W].
     """
@@ -88,7 +88,7 @@ def _load_preprocessed_image_and_gt(data_root: str, dataset_directory: str, case
         raise RuntimeError(f"Expected image from _extract_case_data to be [C,D,H,W], got {image.shape}")
     if gt.ndim != 4:
         raise RuntimeError(f"Expected gt from _extract_case_data to be [1,D,H,W], got {gt.shape}")
-    return image[0].astype(np.float32), gt[0].astype(np.int16)
+    return image.astype(np.float32), gt[0].astype(np.int16)
 
 
 def _find_pred_path(pred_folder: str, case_id: str) -> str:
@@ -99,18 +99,32 @@ def _find_pred_path(pred_folder: str, case_id: str) -> str:
     raise FileNotFoundError(f"Could not find prediction for case {case_id} in {pred_folder}")
 
 
-def _match_shapes_3d(*volumes: np.ndarray) -> Tuple[np.ndarray, ...]:
-    """Crop all 3D volumes to the same spatial size."""
-    if not volumes:
-        raise ValueError("Expected at least one volume")
-    if any(v.ndim != 3 for v in volumes):
-        dims = [v.ndim for v in volumes]
-        raise RuntimeError(f"Expected all volumes to be 3D, got ndims={dims}")
+def _match_shapes_like_overlay(image: np.ndarray, seg: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """Match shapes exactly like visualize_val_overlay._match_shapes.
 
-    d = min(v.shape[0] for v in volumes)
-    h = min(v.shape[1] for v in volumes)
-    w = min(v.shape[2] for v in volumes)
-    return tuple(v[:d, :h, :w] for v in volumes)
+    image: [C, D, H, W]
+    seg: [D, H, W] or [C2, D, H, W]
+    """
+    d_i, h_i, w_i = image.shape[1:]
+
+    if seg.ndim == 3:
+        d_s, h_s, w_s = seg.shape
+        d = min(d_i, d_s)
+        h = min(h_i, h_s)
+        w = min(w_i, w_s)
+        image_c = image[:, :d, :h, :w]
+        seg_c = seg[:d, :h, :w]
+    elif seg.ndim == 4:
+        _, d_s, h_s, w_s = seg.shape
+        d = min(d_i, d_s)
+        h = min(h_i, h_s)
+        w = min(w_i, w_s)
+        image_c = image[:, :d, :h, :w]
+        seg_c = seg[:, :d, :h, :w]
+    else:
+        raise RuntimeError(f"Unexpected seg ndim={seg.ndim} in _match_shapes_like_overlay")
+
+    return image_c, seg_c
 
 
 def _collect_case_ids_from_gt(dataset_directory: str) -> List[str]:
@@ -252,17 +266,28 @@ def visualize_case_tp_fp_fn(
 
     image, gt = _load_preprocessed_image_and_gt(data_root, dataset_directory, case_id)
     pred = _load_label_nifti(_find_pred_path(pred_folder, case_id))
-    image, pred, gt = _match_shapes_3d(image, pred, gt)
+    image, pred = _match_shapes_like_overlay(image, pred)
+    _, gt = _match_shapes_like_overlay(image, gt)
 
     if mode not in ("slice", "mip"):
         raise ValueError("mode must be 'slice' or 'mip'")
 
     if mode == "slice":
-        slice_indices = _normalize_slices(gt.shape, axis, slices)
+        _, d, h, w = image.shape
+        slice_indices = _normalize_slices((d, h, w), axis, slices)
         for s in slice_indices:
-            image_slice = _extract_slice(image, axis, s)
-            pred_slice = _extract_slice(pred, axis, s)
-            gt_slice = _extract_slice(gt, axis, s)
+            if axis == "z":
+                image_slice = image[0, s]
+                pred_slice = pred[s]
+                gt_slice = gt[s]
+            elif axis == "y":
+                image_slice = image[0, :, s, :]
+                pred_slice = pred[:, s, :]
+                gt_slice = gt[:, s, :]
+            else:
+                image_slice = image[0, :, :, s]
+                pred_slice = pred[:, :, s]
+                gt_slice = gt[:, :, s]
             diff_map = _make_tp_fp_fn_map(pred_slice, gt_slice)
             rgb = _render_tp_fp_fn_rgb(diff_map)
 
@@ -337,7 +362,7 @@ def visualize_case_tp_fp_fn(
                 )
 
     else:
-        vol = image
+        vol = image[0]
         pred_fg = pred > 0
         gt_fg = gt > 0
         tp = np.logical_and(pred_fg, gt_fg)
