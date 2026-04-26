@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 import nibabel as nib
 import numpy as np
 
+from nnunet_mednext.utilities.overlay_plots import generate_overlay
+
 
 MODELS_TASK570_EsoTJ83 = {
     "BANet": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_predictions/Task570_EsoTJ83/BANetTrainerV2/preds",
@@ -26,6 +28,8 @@ TASK570_DEFAULT_CONFIG = {
     "output_dir": "./Task570_tp_fp_fn_vis",
     "slices": None,
     "save_gt": True,
+    "save_raw": True,
+    "save_gt_overlay": True,
 }
 
 
@@ -45,6 +49,17 @@ def _load_label_nifti(label_path: str) -> np.ndarray:
     return np.transpose(arr, (2, 1, 0)).astype(np.int16)
 
 
+def _load_image_nifti(image_path: str) -> np.ndarray:
+    if not os.path.isfile(image_path):
+        raise FileNotFoundError(f"Image file not found: {image_path}")
+    arr = nib.load(image_path).get_fdata()
+    if arr.ndim == 3:
+        return np.transpose(arr, (2, 1, 0)).astype(np.float32)
+    if arr.ndim == 4 and arr.shape[-1] == 1:
+        return np.transpose(arr[..., 0], (2, 1, 0)).astype(np.float32)
+    raise RuntimeError(f"Expected 3D image or single-channel 4D image, got shape {arr.shape} from {image_path}")
+
+
 def _find_gt_path(dataset_directory: str, case_id: str) -> str:
     gt_candidates = [
         os.path.join(dataset_directory, "labelsTr"),
@@ -61,6 +76,28 @@ def _find_gt_path(dataset_directory: str, case_id: str) -> str:
     raise FileNotFoundError(f"Could not find GT for case {case_id} under {dataset_directory}")
 
 
+def _find_image_path(dataset_directory: str, case_id: str) -> str:
+    image_dirs = [
+        os.path.join(dataset_directory, "imagesTr"),
+        os.path.join(dataset_directory, "imagesTs"),
+        dataset_directory,
+    ]
+    image_names = [
+        f"{case_id}_0000.nii.gz",
+        f"{case_id}_0000.nii",
+        f"{case_id}.nii.gz",
+        f"{case_id}.nii",
+    ]
+    for image_dir in image_dirs:
+        if not os.path.isdir(image_dir):
+            continue
+        for image_name in image_names:
+            cand = os.path.join(image_dir, image_name)
+            if os.path.isfile(cand):
+                return cand
+    raise FileNotFoundError(f"Could not find raw image for case {case_id} under {dataset_directory}")
+
+
 def _find_pred_path(pred_folder: str, case_id: str) -> str:
     for ext in (".nii.gz", ".nii"):
         cand = os.path.join(pred_folder, f"{case_id}{ext}")
@@ -69,13 +106,16 @@ def _find_pred_path(pred_folder: str, case_id: str) -> str:
     raise FileNotFoundError(f"Could not find prediction for case {case_id} in {pred_folder}")
 
 
-def _match_shapes(pred: np.ndarray, gt: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-    if pred.ndim != 3 or gt.ndim != 3:
-        raise RuntimeError(f"Expected pred/gt to be 3D, got {pred.ndim} and {gt.ndim}")
-    d = min(pred.shape[0], gt.shape[0])
-    h = min(pred.shape[1], gt.shape[1])
-    w = min(pred.shape[2], gt.shape[2])
-    return pred[:d, :h, :w], gt[:d, :h, :w]
+def _match_shapes_3d(*volumes: np.ndarray) -> Tuple[np.ndarray, ...]:
+    if not volumes:
+        raise ValueError("Expected at least one volume")
+    if any(v.ndim != 3 for v in volumes):
+        dims = [v.ndim for v in volumes]
+        raise RuntimeError(f"Expected all volumes to be 3D, got ndims={dims}")
+    d = min(v.shape[0] for v in volumes)
+    h = min(v.shape[1] for v in volumes)
+    w = min(v.shape[2] for v in volumes)
+    return tuple(v[:d, :h, :w] for v in volumes)
 
 
 def _collect_case_ids_from_gt(dataset_directory: str) -> List[str]:
@@ -148,6 +188,16 @@ def _render_binary_mask(mask_2d: np.ndarray, fg_color: np.ndarray) -> np.ndarray
     return rgb
 
 
+def _render_raw_slice(image_slice: np.ndarray) -> np.ndarray:
+    image = image_slice.astype(np.float32, copy=True)
+    image -= image.min()
+    max_val = image.max()
+    if max_val > 0:
+        image = image / max_val
+    image = (image * 255).clip(0, 255).astype(np.uint8)
+    return np.stack([image, image, image], axis=-1)
+
+
 def _extract_slice(volume: np.ndarray, axis: str, index: int) -> np.ndarray:
     if axis == "z":
         return volume[index]
@@ -175,13 +225,16 @@ def visualize_case_tp_fp_fn(
     slices: Optional[List[int]] = None,
     name_prefix: str = "",
     save_gt: bool = False,
+    save_raw: bool = False,
+    save_gt_overlay: bool = False,
 ) -> List[Dict[str, object]]:
     os.makedirs(output_dir, exist_ok=True)
     results: List[Dict[str, object]] = []
 
+    image = _load_image_nifti(_find_image_path(dataset_directory, case_id))
     gt = _load_label_nifti(_find_gt_path(dataset_directory, case_id))
     pred = _load_label_nifti(_find_pred_path(pred_folder, case_id))
-    pred, gt = _match_shapes(pred, gt)
+    image, pred, gt = _match_shapes_3d(image, pred, gt)
 
     if mode not in ("slice", "mip"):
         raise ValueError("mode must be 'slice' or 'mip'")
@@ -189,10 +242,47 @@ def visualize_case_tp_fp_fn(
     if mode == "slice":
         slice_indices = _normalize_slices(gt.shape, axis, slices)
         for s in slice_indices:
+            image_slice = _extract_slice(image, axis, s)
             pred_slice = _extract_slice(pred, axis, s)
             gt_slice = _extract_slice(gt, axis, s)
             diff_map = _make_tp_fp_fn_map(pred_slice, gt_slice)
             rgb = _render_tp_fp_fn_rgb(diff_map)
+
+            if save_raw:
+                raw_rgb = _render_raw_slice(image_slice)
+                raw_base = f"{case_id}_axis-{axis}_slice-{s}_raw.png"
+                raw_name = f"{name_prefix}_{raw_base}" if name_prefix else raw_base
+                raw_path = os.path.join(output_dir, raw_name)
+                plt.imsave(raw_path, raw_rgb)
+                print(f"Saved raw slice to: {raw_path}")
+                results.append(
+                    {
+                        "case_id": case_id,
+                        "axis": axis,
+                        "slice": s,
+                        "path": raw_path,
+                        "pred_folder": pred_folder,
+                        "type": "raw",
+                    }
+                )
+
+            if save_gt_overlay:
+                gt_overlay = generate_overlay(image_slice, gt_slice, overlay_intensity=0.8)
+                gt_overlay_base = f"{case_id}_axis-{axis}_slice-{s}_gt_overlay.png"
+                gt_overlay_name = f"{name_prefix}_{gt_overlay_base}" if name_prefix else gt_overlay_base
+                gt_overlay_path = os.path.join(output_dir, gt_overlay_name)
+                plt.imsave(gt_overlay_path, gt_overlay)
+                print(f"Saved GT overlay to: {gt_overlay_path}")
+                results.append(
+                    {
+                        "case_id": case_id,
+                        "axis": axis,
+                        "slice": s,
+                        "path": gt_overlay_path,
+                        "pred_folder": pred_folder,
+                        "type": "gt_overlay",
+                    }
+                )
 
             base_name = f"{case_id}_axis-{axis}_slice-{s}_tp_fp_fn.png"
             out_name = f"{name_prefix}_{base_name}" if name_prefix else base_name
@@ -229,6 +319,7 @@ def visualize_case_tp_fp_fn(
                 )
 
     else:
+        vol = image
         pred_fg = pred > 0
         gt_fg = gt > 0
         tp = np.logical_and(pred_fg, gt_fg)
@@ -250,11 +341,7 @@ def visualize_case_tp_fp_fn(
         sagittal[fn.max(axis=2)] = 3
 
         fig, axes = plt.subplots(1, 3, figsize=(12, 4))
-        for ax, title, label_map in zip(
-            axes,
-            ("axial", "coronal", "sagittal"),
-            (axial, coronal, sagittal),
-        ):
+        for ax, title, label_map in zip(axes, ("axial", "coronal", "sagittal"), (axial, coronal, sagittal)):
             ax.imshow(_render_tp_fp_fn_rgb(label_map))
             ax.set_title(title)
             ax.axis("off")
@@ -277,6 +364,64 @@ def visualize_case_tp_fp_fn(
             }
         )
 
+        if save_raw:
+            raw_views = [
+                _render_raw_slice(vol.max(axis=0)),
+                _render_raw_slice(vol.max(axis=1)),
+                _render_raw_slice(vol.max(axis=2)),
+            ]
+            fig_raw, axes_raw = plt.subplots(1, 3, figsize=(12, 4))
+            for ax, title, raw_view in zip(axes_raw, ("axial", "coronal", "sagittal"), raw_views):
+                ax.imshow(raw_view)
+                ax.set_title(title)
+                ax.axis("off")
+            plt.tight_layout()
+            raw_base_name = f"{case_id}_mip_raw.png"
+            raw_out_name = f"{name_prefix}_{raw_base_name}" if name_prefix else raw_base_name
+            raw_out_path = os.path.join(output_dir, raw_out_name)
+            fig_raw.savefig(raw_out_path, dpi=200)
+            plt.close(fig_raw)
+            print(f"Saved raw MIP panel to: {raw_out_path}")
+            results.append(
+                {
+                    "case_id": case_id,
+                    "axis": "mip",
+                    "slice": None,
+                    "path": raw_out_path,
+                    "pred_folder": pred_folder,
+                    "type": "raw",
+                }
+            )
+
+        if save_gt_overlay:
+            gt_overlay_views = [
+                generate_overlay(vol.max(axis=0), gt_fg.max(axis=0).astype(np.int16), overlay_intensity=0.8),
+                generate_overlay(vol.max(axis=1), gt_fg.max(axis=1).astype(np.int16), overlay_intensity=0.8),
+                generate_overlay(vol.max(axis=2), gt_fg.max(axis=2).astype(np.int16), overlay_intensity=0.8),
+            ]
+            fig_gt_overlay, axes_gt_overlay = plt.subplots(1, 3, figsize=(12, 4))
+            for ax, title, overlay_view in zip(axes_gt_overlay, ("axial", "coronal", "sagittal"), gt_overlay_views):
+                ax.imshow(overlay_view)
+                ax.set_title(title)
+                ax.axis("off")
+            plt.tight_layout()
+            gt_overlay_base_name = f"{case_id}_mip_gt_overlay.png"
+            gt_overlay_out_name = f"{name_prefix}_{gt_overlay_base_name}" if name_prefix else gt_overlay_base_name
+            gt_overlay_out_path = os.path.join(output_dir, gt_overlay_out_name)
+            fig_gt_overlay.savefig(gt_overlay_out_path, dpi=200)
+            plt.close(fig_gt_overlay)
+            print(f"Saved GT overlay MIP panel to: {gt_overlay_out_path}")
+            results.append(
+                {
+                    "case_id": case_id,
+                    "axis": "mip",
+                    "slice": None,
+                    "path": gt_overlay_out_path,
+                    "pred_folder": pred_folder,
+                    "type": "gt_overlay",
+                }
+            )
+
     return results
 
 
@@ -294,7 +439,7 @@ def _compose_panels_for_folder(output_dir: str, model_names: List[str], fold: in
         print(f"[PANEL] no PNG files found in {single_dir}, nothing to do")
         return
 
-    panel_map = defaultdict(lambda: {"preds": {}, "gt": None})
+    panel_map = defaultdict(lambda: {"preds": {}, "gt": None, "raw": None, "gt_overlay": None})
     for fn in files:
         name, _ = os.path.splitext(fn)
         parts = name.split("-")
@@ -316,15 +461,29 @@ def _compose_panels_for_folder(output_dir: str, model_names: List[str], fold: in
             panel_map[key]["preds"][model_name] = full_path
         elif img_type == "gt":
             panel_map[key]["gt"] = full_path
+        elif img_type == "raw":
+            panel_map[key]["raw"] = full_path
+        elif img_type == "gt_overlay":
+            panel_map[key]["gt_overlay"] = full_path
 
     for (case_id, axis, slice_idx), item in panel_map.items():
         preds = item["preds"]
         gt_path = item["gt"]
+        raw_path = item["raw"]
+        gt_overlay_path = item["gt_overlay"]
         if any(model_name not in preds for model_name in model_names):
             continue
 
-        imgs = [mpimg.imread(preds[m]) for m in model_names]
-        titles = list(model_names)
+        imgs = []
+        titles = []
+        if raw_path is not None:
+            imgs.append(mpimg.imread(raw_path))
+            titles.append("Raw")
+        if gt_overlay_path is not None:
+            imgs.append(mpimg.imread(gt_overlay_path))
+            titles.append("GT Overlay")
+        imgs.extend(mpimg.imread(preds[m]) for m in model_names)
+        titles.extend(model_names)
         if gt_path is not None:
             imgs.append(mpimg.imread(gt_path))
             titles.append("GT")
@@ -360,6 +519,8 @@ def _run_batch(
     output_dir: str,
     slices: Optional[List[int]],
     save_gt: bool,
+    save_raw: bool,
+    save_gt_overlay: bool,
     case_ids: Optional[List[str]] = None,
 ) -> None:
     if not pred_folders:
@@ -383,7 +544,7 @@ def _run_batch(
     single_dir = os.path.join(output_dir, "single")
     os.makedirs(single_dir, exist_ok=True)
 
-    gt_written_keys = set()
+    shared_written_keys = set()
     for pred_folder, model_name in zip(pred_folders, model_names):
         pred_case_ids = set(_collect_case_ids_from_pred_folder(pred_folder))
         case_ids_eff = [cid for cid in selected_case_ids if cid in pred_case_ids]
@@ -409,19 +570,28 @@ def _run_batch(
                         mode="slice",
                         axis=axis,
                         slices=slices,
-                        save_gt=save_gt and (case_id, axis) not in gt_written_keys,
+                        save_gt=save_gt and (case_id, axis) not in shared_written_keys,
+                        save_raw=save_raw and (case_id, axis) not in shared_written_keys,
+                        save_gt_overlay=save_gt_overlay and (case_id, axis) not in shared_written_keys,
                     )
                     for item in results:
                         slice_idx = item["slice"]
                         img_type = item["type"]
                         old_path = item["path"]
                         ext = os.path.splitext(old_path)[1]
-                        out_model_name = model_name if img_type == "tp_fp_fn" else "GT"
+                        if img_type == "tp_fp_fn":
+                            out_model_name = model_name
+                        elif img_type == "gt":
+                            out_model_name = "GT"
+                        elif img_type == "raw":
+                            out_model_name = "RAW"
+                        else:
+                            out_model_name = "GTOVERLAY"
                         new_name = f"{fold}-{case_id}-{axis}-{slice_idx}-{out_model_name}-{img_type}{ext}"
                         new_path = os.path.join(single_dir, new_name)
                         os.replace(old_path, new_path)
-                        if img_type == "gt":
-                            gt_written_keys.add((case_id, axis))
+                        if img_type in {"gt", "raw", "gt_overlay"}:
+                            shared_written_keys.add((case_id, axis))
                 except Exception as e:
                     print(f"[ERROR] Failed on case {case_id}, axis {axis}, model {model_name}: {e}")
 
@@ -438,6 +608,8 @@ def run_task570_default() -> None:
         output_dir=cfg["output_dir"],
         slices=cfg["slices"],
         save_gt=cfg["save_gt"],
+        save_raw=cfg["save_raw"],
+        save_gt_overlay=cfg["save_gt_overlay"],
     )
 
 
@@ -456,6 +628,8 @@ def _build_argparser() -> argparse.ArgumentParser:
     p_single.add_argument("--axis", type=str, choices=["z", "y", "x"], default="z")
     p_single.add_argument("--slices", type=int, nargs="*", default=None, help="Slice indices for slice mode")
     p_single.add_argument("--save_gt", action="store_true", help="Also export GT masks")
+    p_single.add_argument("--save_raw", action="store_true", help="Also export raw image slices")
+    p_single.add_argument("--save_gt_overlay", action="store_true", help="Also export GT-overlaid image slices")
 
     p_batch = subparsers.add_parser("batch", help="Batch visualize multiple models")
     p_batch.add_argument("--dataset_directory", type=str, required=True, help="Task directory with GT masks")
@@ -466,6 +640,12 @@ def _build_argparser() -> argparse.ArgumentParser:
     p_batch.add_argument("--output_dir", type=str, required=True, help="Where to save output PNGs and panels")
     p_batch.add_argument("--slices", type=int, nargs="*", default=None, help="Slice indices for all axes")
     p_batch.add_argument("--save_gt", action="store_true", help="Also export GT masks and append GT to panels")
+    p_batch.add_argument("--save_raw", action="store_true", help="Also export raw image slices and append them to panels")
+    p_batch.add_argument(
+        "--save_gt_overlay",
+        action="store_true",
+        help="Also export GT-overlaid image slices and append them to panels",
+    )
 
     subparsers.add_parser("task570_default", help="Use built-in Task570_EsoTJ83 config and model list")
     return parser
@@ -485,6 +665,8 @@ if __name__ == "__main__":
             axis=args.axis,
             slices=args.slices,
             save_gt=args.save_gt,
+            save_raw=args.save_raw,
+            save_gt_overlay=args.save_gt_overlay,
         )
     elif args.command == "batch":
         _run_batch(
@@ -495,6 +677,8 @@ if __name__ == "__main__":
             output_dir=args.output_dir,
             slices=args.slices,
             save_gt=args.save_gt,
+            save_raw=args.save_raw,
+            save_gt_overlay=args.save_gt_overlay,
             case_ids=args.case_ids,
         )
     elif args.command == "task570_default":
