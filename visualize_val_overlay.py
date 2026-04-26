@@ -17,7 +17,7 @@ from visualize_fd_edge_and_ds import _extract_case_data
 MODELS_TASK602_EsoTJ83 = {
     # 模型名: preds 目录
       "nnFormer": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_predictions/Task602_ls/nnFormer",
-    "BGHNetV4": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_predictions/Task602_ls/BGHNetV4Trainer/preds",
+    "BGHNetV4": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_predictions/Task602_ls/BGHNetV4Trainer",
     "MedNeXt": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_predictions/Task602_ls/MedNeXt",
     "nnUNet": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_predictions/Task602_ls/nnU-Net",
     "SwinUNETR": "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_predictions/Task602_ls/SwinUNETR",
