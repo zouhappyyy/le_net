@@ -168,3 +168,14 @@ python export_task570_middle_slices.py \
   --dataset_directory "/home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task570_EsoTJ83" \
   --output_dir "Task570_middle_slices" \
   --alpha 0.99
+
+
+python analyze_encoder_frequency_spectrum.py \
+  --checkpoint_path ./ckpt/nnUNet/3d_fullres/Task530_EsoTJ_30pct/nnUNetTrainerV2_Double_CCA_UPSam_fd_loss_RWKV_MedNeXt__nnUNetPlansv2.1_trgSp_1x1x1_rwkv/fold_3 \
+  --checkpoint_name model_best \
+  --image_dir /home/fangzheng/zoule/ESO_nnUNet_dataset/nnUNet_preprocessed/Task530_EsoTJ_30pct/nnUNetData2D_plans_v2.1_trgSp_1x1x1_stage0 \
+  --out_dir ./fold3_encoder_frequency_spectrum \
+  --input_channel 0 \
+  --num_bins 80 \
+  --high_cut 0.30 \
+  --device cuda
