@@ -290,7 +290,10 @@ def visualize_single_case(
     vol = _load_volume(image_path, input_channel=input_channel)
     if input_channel >= vol.shape[0]:
         raise ValueError(f"input_channel={input_channel} out of range for input with {vol.shape[0]} channels")
-    x = _to_input_tensor(vol, device)
+    # Feed only the selected image channel to the model. nnUNet preprocessed
+    # training npz files often store extra non-image channels (for example the
+    # segmentation label) alongside the image data.
+    x = _to_input_tensor(vol[input_channel:input_channel + 1], device)
 
     input_vol = vol[input_channel]
     input_shape = tuple(int(v) for v in input_vol.shape)
