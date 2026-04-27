@@ -218,13 +218,13 @@ def _save_stage_visualization(
     axes[0].set_title("input")
     axes[0].axis("off")
 
-    axes[1].imshow(mean_map, cmap="magma")
+    axes[1].imshow(mean_map, cmap="jet")
     axes[1].set_title(f"{stage_name}\nmean|feat|")
     axes[1].axis("off")
 
     for plot_idx, ch_idx in enumerate(top_channels, start=2):
         ch_map = _normalize01(np.abs(feat2d[ch_idx]))
-        axes[plot_idx].imshow(ch_map, cmap="magma")
+        axes[plot_idx].imshow(ch_map, cmap="jet")
         axes[plot_idx].set_title(f"ch {ch_idx}")
         axes[plot_idx].axis("off")
 
@@ -233,7 +233,7 @@ def _save_stage_visualization(
     plt.close(fig)
 
     plt.figure(figsize=(4, 4))
-    plt.imshow(max_map, cmap="magma")
+    plt.imshow(max_map, cmap="jet")
     plt.axis("off")
     plt.tight_layout()
     plt.savefig(os.path.join(out_dir, f"{stage_name}_max.png"), dpi=180, bbox_inches="tight")
