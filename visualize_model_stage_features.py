@@ -18,6 +18,9 @@ except Exception:  # pragma: no cover - optional dependency
 from nnunet_mednext.training.model_restore import restore_model
 
 
+SUPPORTED_IMAGE_SUFFIXES = (".nii.gz", ".nii", ".npy", ".npz")
+
+
 def _normalize01(arr: np.ndarray) -> np.ndarray:
     arr = np.asarray(arr, dtype=np.float32)
     arr = np.nan_to_num(arr, copy=False)
@@ -92,6 +95,38 @@ def _basename_without_double_ext(path: str) -> str:
     if name.endswith(".nii.gz"):
         return name[:-7]
     return os.path.splitext(name)[0]
+
+
+def _is_supported_volume_file(path: str) -> bool:
+    lower = path.lower()
+    return any(lower.endswith(suffix) for suffix in SUPPORTED_IMAGE_SUFFIXES)
+
+
+def _collect_input_files(image_path: Optional[str] = None, image_dir: Optional[str] = None) -> List[str]:
+    if bool(image_path) == bool(image_dir):
+        raise ValueError("Specify exactly one of --image or --image_dir")
+
+    if image_path is not None:
+        if not _is_supported_volume_file(image_path):
+            raise ValueError(f"Unsupported input file: {image_path}")
+        return [image_path]
+
+    if not os.path.isdir(image_dir):
+        raise FileNotFoundError(f"Input directory not found: {image_dir}")
+
+    files = []
+    for name in sorted(os.listdir(image_dir)):
+        full_path = os.path.join(image_dir, name)
+        if os.path.isfile(full_path) and _is_supported_volume_file(full_path):
+            files.append(full_path)
+
+    if not files:
+        raise FileNotFoundError(
+            f"No supported volume files found under {image_dir}. "
+            f"Expected one of: {', '.join(SUPPORTED_IMAGE_SUFFIXES)}"
+        )
+
+    return files
 
 
 def _resolve_checkpoint_paths(path: str, checkpoint_name: str) -> Tuple[str, str]:
@@ -240,27 +275,18 @@ def _save_stage_visualization(
     plt.close()
 
 
-def visualize_model_stage_features(
-    checkpoint_path: str,
+def visualize_single_case(
     image_path: str,
     out_dir: str,
-    checkpoint_name: str = "model_best",
+    network: torch.nn.Module,
+    model_path: str,
     axis: str = "z",
     slice_index: Optional[int] = None,
     input_channel: int = 0,
     topk: int = 6,
     save_raw: bool = True,
-    device: Optional[str] = None,
+    device: str = "cpu",
 ):
-    os.makedirs(out_dir, exist_ok=True)
-
-    if device is None:
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-
-    model_path, pkl_path = _resolve_checkpoint_paths(checkpoint_path, checkpoint_name)
-    trainer = restore_model(pkl_path, checkpoint=model_path, train=False)
-    network = trainer.network.to(device).eval()
-
     vol = _load_volume(image_path, input_channel=input_channel)
     if input_channel >= vol.shape[0]:
         raise ValueError(f"input_channel={input_channel} out of range for input with {vol.shape[0]} channels")
@@ -308,9 +334,52 @@ def visualize_model_stage_features(
     print(f"Saved visualizations to: {case_out_dir}")
 
 
+def visualize_model_stage_features(
+    checkpoint_path: str,
+    out_dir: str,
+    image_path: Optional[str] = None,
+    image_dir: Optional[str] = None,
+    checkpoint_name: str = "model_best",
+    axis: str = "z",
+    slice_index: Optional[int] = None,
+    input_channel: int = 0,
+    topk: int = 6,
+    save_raw: bool = True,
+    device: Optional[str] = None,
+):
+    os.makedirs(out_dir, exist_ok=True)
+
+    if device is None:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    input_files = _collect_input_files(image_path=image_path, image_dir=image_dir)
+
+    model_path, pkl_path = _resolve_checkpoint_paths(checkpoint_path, checkpoint_name)
+    trainer = restore_model(pkl_path, checkpoint=model_path, train=False)
+    network = trainer.network.to(device).eval()
+
+    print(f"Checkpoint: {model_path}")
+    print(f"Found {len(input_files)} case(s) to process")
+
+    for idx, curr_image_path in enumerate(input_files, start=1):
+        print(f"[{idx}/{len(input_files)}] Processing {curr_image_path}")
+        visualize_single_case(
+            image_path=curr_image_path,
+            out_dir=out_dir,
+            network=network,
+            model_path=model_path,
+            axis=axis,
+            slice_index=slice_index,
+            input_channel=input_channel,
+            topk=topk,
+            save_raw=save_raw,
+            device=device,
+        )
+
+
 def _build_argparser():
     parser = argparse.ArgumentParser(
-        description="Load an nnUNet/MedNeXt checkpoint and visualize stage-wise feature maps for one 3D volume."
+        description="Load an nnUNet/MedNeXt checkpoint and visualize stage-wise feature maps for one or more 3D volumes."
     )
     parser.add_argument(
         "--checkpoint_path",
@@ -318,7 +387,8 @@ def _build_argparser():
         required=True,
         help="Path to a fold directory, .model file, or .model.pkl file.",
     )
-    parser.add_argument("--image", type=str, required=True, help="Path to a 3D .nii/.nii.gz/.npy/.npz volume.")
+    parser.add_argument("--image", type=str, default=None, help="Path to a 3D .nii/.nii.gz/.npy/.npz volume.")
+    parser.add_argument("--image_dir", type=str, default=None, help="Directory containing 3D .nii/.nii.gz/.npy/.npz volumes.")
     parser.add_argument("--out_dir", type=str, default="./stage_feature_vis", help="Output directory.")
     parser.add_argument(
         "--checkpoint_name",
@@ -339,6 +409,7 @@ if __name__ == "__main__":
     args = _build_argparser().parse_args()
     visualize_model_stage_features(
         checkpoint_path=args.checkpoint_path,
+        image_dir=args.image_dir,
         image_path=args.image,
         out_dir=args.out_dir,
         checkpoint_name=args.checkpoint_name,
