@@ -192,7 +192,15 @@ def draw_boxplots(case_metrics: pd.DataFrame, output_path: Path) -> None:
         "襄阳市中心医院": "#F58518",
     }
 
-    fig, axes = plt.subplots(1, 5, figsize=(18, 4.8))
+    fig = plt.figure(figsize=(15, 10.8))
+    gs = fig.add_gridspec(2, 6, hspace=0.55)
+    axes = [
+        fig.add_subplot(gs[0, 0:2]),
+        fig.add_subplot(gs[0, 2:4]),
+        fig.add_subplot(gs[0, 4:6]),
+        fig.add_subplot(gs[1, 1:3]),
+        fig.add_subplot(gs[1, 3:5]),
+    ]
 
     for ax, metric in zip(axes, metrics):
         data = [
@@ -219,12 +227,13 @@ def draw_boxplots(case_metrics: pd.DataFrame, output_path: Path) -> None:
         for cap in box["caps"]:
             cap.set_color("black")
             cap.set_linewidth(1.0)
-        ax.set_box_aspect(1)
+        ax.set_box_aspect(0.95)
         ax.set_title(metric_titles[metric], fontsize=22)
         ax.tick_params(axis="x", rotation=0, labelsize=18)
         ax.tick_params(axis="y", labelsize=18)
         ax.grid(True, axis="y", linestyle="--", alpha=0.4)
 
+    # Keep the last grid cell empty so the second row has two enlarged subplots.
     legend_handles = [
         Patch(facecolor=center_colors["十堰天和医院"], edgecolor="black", alpha=0.65, label="C1: 十堰天和医院"),
         Patch(facecolor=center_colors["襄阳市中心医院"], edgecolor="black", alpha=0.65, label="C2: 襄阳市中心医院"),
@@ -238,7 +247,7 @@ def draw_boxplots(case_metrics: pd.DataFrame, output_path: Path) -> None:
         bbox_to_anchor=(0.5, 0.93),
     )
     fig.suptitle("MedNeXt Sampled Cases: Center-wise Metric Boxplots", fontsize=24)
-    fig.tight_layout(rect=[0, 0, 1, 0.82], w_pad=1.0)
+    fig.subplots_adjust(left=0.06, right=0.98, bottom=0.07, top=0.82, wspace=0.38)
     fig.savefig(output_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
 
