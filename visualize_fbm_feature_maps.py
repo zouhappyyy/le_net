@@ -200,25 +200,25 @@ def _plot_overview(
 ) -> None:
     panels = [
         ("Original", original_3d, "gray", False),
-        ("FBM Output", out_3d, "viridis", False),
+        ("FBM Output", out_3d, "gray", False),
         ("Low Frequency", low_3d, "gray", False),
-        ("High Frequency", high_3d, "RdBu_r", True),
+        ("High Frequency", high_3d, "gray", False),
     ]
 
     fig, axes = plt.subplots(1, 4, figsize=(18, 4.8))
     for ax, (name, vol, cmap, signed) in zip(axes, panels):
         img = _prepare_display(vol, view_mode=view_mode, axis=axis, slice_index=slice_index)
-        disp = _normalize_signed(img) if signed else _normalize_01(img)
-        if signed:
-            ax.imshow(disp, cmap=cmap, vmin=-1, vmax=1)
+        if name == "High Frequency":
+            disp = _normalize_01(np.abs(img))
         else:
-            ax.imshow(disp, cmap=cmap)
+            disp = _normalize_signed(img) if signed else _normalize_01(img)
+        ax.imshow(disp, cmap=cmap)
         ax.set_title(name)
         ax.axis("off")
 
     fig.suptitle(title)
     fig.tight_layout()
-    fig.savefig(save_path, dpi=220, bbox_inches="tight")
+    fig.savefig(save_path, dpi=300, bbox_inches="tight", facecolor="white")
     plt.close(fig)
 
 
