@@ -254,6 +254,61 @@ def _plot_band_grid(
     plt.close(fig)
 
 
+def _plot_publication_figure(
+    save_path: str,
+    title: str,
+    original_3d: np.ndarray,
+    low_3d: np.ndarray,
+    high_3d: np.ndarray,
+    raw_bands_3d: Sequence[np.ndarray],
+    view_mode: str,
+    axis: str,
+    slice_index: int = None,
+    overlay_alpha: float = 0.45,
+) -> None:
+    orig = _prepare_display(original_3d, view_mode=view_mode, axis=axis, slice_index=slice_index)
+    low = _prepare_display(low_3d, view_mode=view_mode, axis=axis, slice_index=slice_index)
+    high = _prepare_display(high_3d, view_mode=view_mode, axis=axis, slice_index=slice_index)
+
+    orig_n = _normalize_01(orig)
+    low_n = _normalize_01(low)
+    high_abs = _normalize_01(np.abs(high))
+
+    band_imgs = []
+    for band in raw_bands_3d:
+        band_img = _prepare_display(band, view_mode=view_mode, axis=axis, slice_index=slice_index)
+        band_imgs.append(_normalize_01(np.abs(band_img)))
+
+    ncols = max(3, len(band_imgs))
+    fig, axes = plt.subplots(2, ncols, figsize=(3.2 * ncols, 6.0))
+    if ncols == 1:
+        axes = np.asarray([axes])
+
+    for ax in axes.ravel():
+        ax.axis("off")
+
+    axes[0, 0].imshow(orig_n, cmap="gray")
+    axes[0, 0].set_title("Original", fontsize=12)
+
+    axes[0, 1].imshow(orig_n, cmap="gray")
+    axes[0, 1].imshow(low_n, cmap="gray", alpha=overlay_alpha)
+    axes[0, 1].set_title("Low-frequency", fontsize=12)
+
+    axes[0, 2].imshow(orig_n, cmap="gray")
+    axes[0, 2].imshow(high_abs, cmap="inferno", alpha=overlay_alpha)
+    axes[0, 2].set_title("High-frequency", fontsize=12)
+
+    for idx, band_img in enumerate(band_imgs):
+        axes[1, idx].imshow(orig_n, cmap="gray")
+        axes[1, idx].imshow(band_img, cmap="viridis", alpha=overlay_alpha)
+        axes[1, idx].set_title(f"High band {idx + 1}", fontsize=12)
+
+    fig.suptitle(title, fontsize=14)
+    fig.tight_layout()
+    fig.savefig(save_path, dpi=300, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+
+
 def visualize_fbm_features(
     feature_path: str,
     out_dir: str,
@@ -321,6 +376,19 @@ def visualize_fbm_features(
         slice_index=slice_index,
     )
 
+    paper_path = os.path.join(out_dir, f"{case_name}_fbm_paper.png")
+    _plot_publication_figure(
+        save_path=paper_path,
+        title=f"Frequency-band decomposition ({case_name})",
+        original_3d=x_vis,
+        low_3d=low_vis,
+        high_3d=high_vis,
+        raw_bands_3d=raw_band_vis,
+        view_mode=view_mode,
+        axis=axis,
+        slice_index=slice_index,
+    )
+
     np.save(os.path.join(out_dir, f"{case_name}_fbm_output.npy"), out_np)
     np.save(os.path.join(out_dir, f"{case_name}_fbm_low.npy"), low_np)
     np.save(os.path.join(out_dir, f"{case_name}_fbm_high.npy"), high_np)
@@ -330,6 +398,7 @@ def visualize_fbm_features(
 
     print(f"Saved overview figure to: {overview_path}")
     print(f"Saved band figure to: {bands_path}")
+    print(f"Saved publication figure to: {paper_path}")
     print(f"Saved decomposition arrays under: {out_dir}")
 
 
