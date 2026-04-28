@@ -290,17 +290,14 @@ def _plot_publication_figure(
     axes[0, 0].imshow(orig_n, cmap="gray")
     axes[0, 0].set_title("Original", fontsize=12)
 
-    axes[0, 1].imshow(orig_n, cmap="gray")
-    axes[0, 1].imshow(low_n, cmap="gray", alpha=overlay_alpha)
+    axes[0, 1].imshow(low_n, cmap="gray")
     axes[0, 1].set_title("Low-frequency", fontsize=12)
 
-    axes[0, 2].imshow(orig_n, cmap="gray")
-    axes[0, 2].imshow(high_abs, cmap="inferno", alpha=overlay_alpha)
+    axes[0, 2].imshow(high_abs, cmap="gray")
     axes[0, 2].set_title("High-frequency", fontsize=12)
 
     for idx, band_img in enumerate(band_imgs):
-        axes[1, idx].imshow(orig_n, cmap="gray")
-        axes[1, idx].imshow(band_img, cmap="viridis", alpha=overlay_alpha)
+        axes[1, idx].imshow(band_img, cmap="gray")
         axes[1, idx].set_title(f"High band {idx + 1}", fontsize=12)
 
     fig.suptitle(title, fontsize=14)
