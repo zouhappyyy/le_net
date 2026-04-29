@@ -2,10 +2,9 @@ import argparse
 import os
 from typing import Optional, Tuple
 
-import matplotlib.pyplot as plt
 import nibabel as nib
 import numpy as np
-from matplotlib.patches import Patch
+import matplotlib.pyplot as plt
 from scipy.ndimage import binary_erosion
 
 
@@ -137,7 +136,7 @@ def visualize_case(
     data_root: str,
     dataset_directory: str,
     case_id: str,
-    output_path: str,
+    output_dir: str,
     dpi: int = 200,
 ) -> None:
     image = _load_preprocessed_image(data_root, case_id)
@@ -147,44 +146,29 @@ def visualize_case(
     d, h, w = image.shape
     mid_indices = {"z": d // 2, "y": h // 2, "x": w // 2}
 
-    fig, axes = plt.subplots(3, 3, figsize=(12, 12))
-    col_titles = ["Original", "Mask Overlay", "Boundary Overlay"]
+    os.makedirs(output_dir, exist_ok=True)
 
-    for col, title in enumerate(col_titles):
-        axes[0, col].set_title(title, fontsize=13)
-
-    for row, axis_name in enumerate(("z", "y", "x")):
+    for axis_name in ("z", "y", "x"):
         idx = mid_indices[axis_name]
         img_slice = _extract_slice(image, axis_name, idx)
         mask_slice = _extract_slice(mask, axis_name, idx)
         boundary = _mask_boundary(mask_slice)
         img_show = _normalize_slice(img_slice)
+        mask_show = (mask_slice > 0).astype(np.uint8) * 255
+        boundary_show = boundary.astype(np.uint8) * 255
 
-        axes[row, 0].imshow(img_show, cmap="gray")
-        axes[row, 0].set_ylabel(f"{axis_name.upper()} mid={idx}", fontsize=12)
+        base_name = f"{case_id}_axis-{axis_name}_mid-{idx}"
+        image_path = os.path.join(output_dir, f"{base_name}_image.png")
+        mask_path = os.path.join(output_dir, f"{base_name}_mask.png")
+        boundary_path = os.path.join(output_dir, f"{base_name}_boundary.png")
 
-        axes[row, 1].imshow(img_show, cmap="gray")
-        axes[row, 1].imshow(np.ma.masked_where(mask_slice == 0, mask_slice > 0), cmap="autumn", alpha=0.45)
+        plt.imsave(image_path, img_show, cmap="gray")
+        plt.imsave(mask_path, mask_show, cmap="gray", vmin=0, vmax=255)
+        plt.imsave(boundary_path, boundary_show, cmap="gray", vmin=0, vmax=255)
 
-        axes[row, 2].imshow(img_show, cmap="gray")
-        axes[row, 2].contour(boundary.astype(np.uint8), levels=[0.5], colors="lime", linewidths=1.2)
-
-        for col in range(3):
-            axes[row, col].set_xticks([])
-            axes[row, col].set_yticks([])
-
-    legend_handles = [
-        Patch(facecolor="orange", edgecolor="orange", alpha=0.45, label="Mask"),
-        Patch(facecolor="none", edgecolor="lime", label="Boundary"),
-    ]
-    fig.legend(handles=legend_handles, loc="lower center", ncol=2, frameon=False)
-    fig.suptitle(f"{case_id} middle slices (z / y / x)", fontsize=15)
-    fig.tight_layout(rect=(0, 0.04, 1, 0.97))
-
-    os.makedirs(os.path.dirname(os.path.abspath(output_path)) or ".", exist_ok=True)
-    fig.savefig(output_path, dpi=dpi, bbox_inches="tight")
-    plt.close(fig)
-    print(f"Saved figure to: {output_path}")
+        print(f"Saved {axis_name}-axis image to: {image_path}")
+        print(f"Saved {axis_name}-axis mask to: {mask_path}")
+        print(f"Saved {axis_name}-axis boundary to: {boundary_path}")
 
 
 def main() -> None:
@@ -208,10 +192,10 @@ def main() -> None:
         help="Case id to visualize. If omitted, the first case in data_root is used.",
     )
     parser.add_argument(
-        "--output_path",
+        "--output_dir",
         type=str,
-        default="./task530_middle_slices.png",
-        help="Path to save the composed PNG figure.",
+        default="./task530_middle_slices",
+        help="Directory to save exported PNG files.",
     )
     parser.add_argument("--dpi", type=int, default=200)
     args = parser.parse_args()
@@ -221,7 +205,7 @@ def main() -> None:
         data_root=args.data_root,
         dataset_directory=args.dataset_directory,
         case_id=case_id,
-        output_path=args.output_path,
+        output_dir=args.output_dir,
         dpi=args.dpi,
     )
 
