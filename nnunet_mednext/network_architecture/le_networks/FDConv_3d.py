@@ -1,4 +1,5 @@
 import math
+import torch
 import torch.autograd
 # python
 import torch.nn as nn
@@ -254,7 +255,7 @@ class FrequencyBandModulation3D(nn.Module):
     核心逻辑：
         1. 预计算不同频率的掩码（mask），避免重复计算
         2. FFT将特征转换至频域，按掩码分割为低频/高频段
-        3. 对各频段用分组卷积生成注意力，加权后融合
+        3. 对各频段用可学习增益（≥1）加权高频残差后融合，保证高频增强
     参数：
         in_channels: 输入特征通道数
         k_list: 频率划分系数（默认[2]，系数越小，低频段范围越大）
@@ -263,7 +264,8 @@ class FrequencyBandModulation3D(nn.Module):
         spatial_kernel: 空间卷积核尺寸（默认3）
         max_size: 预计算掩码的最大尺寸（默认(64,64)，适配多数特征）
     - 对输入执行 3D rfftn/irfftn，按预计算的频域 mask 分割频带
-    - 每个频带用分组 3D 卷积生成注意力并加权
+    - 高频残差通过空间注意力（≥1）和逐频段标量增益（≥1，高频段更大）加权
+    - 保证所有高频段的增益均 ≥ 1（增强而非抑制）
     """
 
     def __init__(self, in_channels, k_list=[2], lowfreq_att=False, fs_feat='feat',
@@ -286,8 +288,15 @@ class FrequencyBandModulation3D(nn.Module):
             if init == 'zero':
                 nn.init.normal_(conv3d.weight, std=1e-6)
                 if conv3d.bias is not None:
-                    conv3d.bias.data.zero_()
+                    # 初始化为较大负值，使 1 + softplus(bias) ≈ 1（接近恒等映射）
+                    nn.init.constant_(conv3d.bias, -5.0)
             self.freq_weight_conv_list.append(conv3d)
+
+        # 逐频段标量增益参数：band_gains[0]（最高频）≥ … ≥ band_gains[N-1] ≥ 1
+        # 通过对 band_gain_raw 做 softplus + 反向累加实现单调有序
+        # 初始化为 -5.0：softplus(-5) ≈ 0.007，使初始增益 ≈ 1（接近恒等映射），
+        # 与 freq_weight_conv_list 的 bias 初始化(-5.0)保持一致
+        self.band_gain_raw = nn.Parameter(torch.full((len(k_list),), -5.0))
 
         max_d, max_h, max_w = max_size
         # cached_masks: [num_masks, 1, max_d, max_h, max_w_out]
@@ -307,11 +316,9 @@ class FrequencyBandModulation3D(nn.Module):
         return torch.stack(masks, dim=0).unsqueeze(1)  # [num_masks,1,D,H,W_out]
 
     def _activate(self, x):
-        if self.act == 'sigmoid':
-            return torch.sigmoid(x) * 2
-        elif self.act == 'tanh':
-            return 1 + torch.tanh(x)
-        raise NotImplementedError
+        # 保证权重 >= 1：高频残差只会被增强，不会被压制
+        # 1 + softplus(x) ∈ [1, ∞)
+        return 1.0 + F.softplus(x)
 
     def forward(self, x, att_feat=None, return_high: bool = False):
         att_feat = att_feat if att_feat is not None else x
@@ -326,6 +333,18 @@ class FrequencyBandModulation3D(nn.Module):
         # 2. 加载预计算掩码并调整尺寸
         current_masks = F.interpolate(self.cached_masks.float(), size=(freq_d, freq_h, freq_w), mode='nearest')
 
+        # 计算单调有序的逐频段标量增益
+        # 频段顺序（与 k_list 升序排列对应）：
+        #   idx=0 (k=k_list[0], 最小k) 对应最高频残差（pre_x 减去最大低频区域）
+        #   idx=N-1 (k=k_list[-1], 最大k) 对应最低高频残差
+        # 因此 band_gains[0] 最大，确保最高频段获得最强增益
+        # band_gains[0] >= band_gains[1] >= … >= band_gains[N-1] >= 1
+        # 参数化：deltas = softplus(raw) > 0；gains[i] = 1 + Σ_{j >= i} deltas[j]
+        band_deltas = F.softplus(self.band_gain_raw)  # [N], 全正
+        band_gains = 1.0 + torch.flip(
+            torch.cumsum(torch.flip(band_deltas, [0]), dim=0), [0]
+        )  # [N], 单调递减，band_gains[0] 最大
+
         # 累计所有高频残差，用于需要时输出 high_acc
         high_acc = torch.zeros_like(x)
 
@@ -338,9 +357,9 @@ class FrequencyBandModulation3D(nn.Module):
             pre_x = low_part  # 更新低频累积
             high_acc = high_acc + high_part
 
-            # 生成频带注意力并加权高频部分
+            # 空间注意力（>= 1）乘以逐频段标量增益（>= 1），保证总增益 >= 1
             freq_weight = self.freq_weight_conv_list[idx](att_feat)
-            freq_weight = self._activate(freq_weight)
+            freq_weight = self._activate(freq_weight) * band_gains[idx]
             tmp = freq_weight.reshape(b, self.spatial_group, -1, d, h, w) * \
                   high_part.reshape(b, self.spatial_group, -1, d, h, w)
             x_list.append(tmp.reshape(b, -1, d, h, w))
